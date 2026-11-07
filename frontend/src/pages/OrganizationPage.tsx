@@ -11,7 +11,7 @@ export function OrganizationPage() {
 
   return (
     <>
-      <PageHeader title="Organization" />
+      <PageHeader title="Organização" />
       <p>Backend: {ping.isPending ? 'a verificar…' : ping.isError ? 'indisponível' : ping.data.status}</p>
     </>
   )

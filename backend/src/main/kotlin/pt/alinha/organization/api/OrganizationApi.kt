@@ -1,7 +1,7 @@
 package pt.alinha.organization.api
 
 /**
- * Contrato «api» deste plugin: a ÚNICA forma síncrona de outros plugins
- * lhe pedirem dados. Tudo o resto em pt.alinha.organization.internal é privado.
+ * This plugin's «api» contract: the ONLY synchronous way for other plugins
+ * to ask it for data. Everything under pt.alinha.organization.internal is private.
  */
 interface OrganizationApi

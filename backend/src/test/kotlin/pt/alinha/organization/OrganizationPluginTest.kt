@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test
 
 class OrganizationPluginTest {
     @Test
-    fun `manifest tem o id do plugin`() {
+    fun `manifest has the plugin id`() {
         assertEquals("organization", OrganizationPlugin().manifest.id)
     }
 }

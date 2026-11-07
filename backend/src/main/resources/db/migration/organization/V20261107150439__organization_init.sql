@@ -1,2 +1,2 @@
--- Schema próprio do plugin Organization. Nenhum outro módulo lê estas tabelas.
+-- Own schema of the Organization plugin. No other module reads these tables.
 create schema if not exists organization;
