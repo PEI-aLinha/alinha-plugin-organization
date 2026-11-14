@@ -5,19 +5,19 @@ import { OrganizationPage } from './pages/OrganizationPage'
  * The plugin's frontend entry point. The shell reads this object and mounts
  * the routes and the menu — nothing to register by hand in the shell.
  *   area 'client'     → /org/:org/<path>
- *   area 'consultant' → /carteira/<path>
- * User-visible text (title, label) and paths are in Portuguese, plain language
- * (UI requirement in the technical report).
+ *   area 'consultant' → /portfolio/:org/<path>
+ * User-visible text (title, label) is in European Portuguese, plain language
+ * (UI requirement in the technical report). Paths are in English.
  */
 export default definePlugin({
   id: 'organization',
   name: 'Organization',
   routes: {
     client: [
-      { path: 'organizacao', handle: { title: 'Organização' }, Component: OrganizationPage },
+      { path: 'organization', handle: { title: 'Organização' }, Component: OrganizationPage },
     ],
   },
   nav: [
-    { label: 'Organização', path: 'organizacao', area: 'client' },
+    { label: 'Organização', path: 'organization', area: 'client' },
   ],
 })
