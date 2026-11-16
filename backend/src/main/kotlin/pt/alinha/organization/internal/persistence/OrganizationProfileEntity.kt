@@ -27,8 +27,9 @@ class OrganizationProfileEntity(
 
     var name: String = profile.name
         protected set
-    var nif: String = profile.nif
-        protected set
+    /** Fixed at registration: the NIF identifies the company (organization#2). */
+    @Column(updatable = false)
+    val nif: String = profile.nif
     var cae: String = profile.cae
         protected set
     var sector: String = profile.sector
@@ -76,12 +77,14 @@ class OrganizationProfileEntity(
         permanentContact = PermanentContact(permanentContactName, permanentContactPhone),
     )
 
-    /** Applies [profile] and returns the names of the fields that changed (for the audit trail, no values). */
+    /**
+     * Applies [profile] and returns the names of the fields that changed (for the audit trail, no values). The NIF
+     * never changes: the service refuses a different one before calling this.
+     */
     fun update(profile: OrganizationProfile, at: Instant): List<String> {
         val before = toProfile()
         val changed = listOfNotNull(
             "name".takeIf { before.name != profile.name },
-            "nif".takeIf { before.nif != profile.nif },
             "cae".takeIf { before.cae != profile.cae },
             "sector".takeIf { before.sector != profile.sector },
             "subsector".takeIf { before.subsector != profile.subsector },
@@ -94,7 +97,6 @@ class OrganizationProfileEntity(
         )
         if (changed.isEmpty()) return changed
         name = profile.name
-        nif = profile.nif
         cae = profile.cae
         sector = profile.sector
         subsector = profile.subsector
