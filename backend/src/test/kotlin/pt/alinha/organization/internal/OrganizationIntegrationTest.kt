@@ -118,7 +118,11 @@ class OrganizationIntegrationTest {
     fun `a second registration by the same account is a 409`() {
         registered()
 
-        register().andExpect { status { isConflict() } }
+        register().andExpect {
+            status { isConflict() }
+            jsonPath("$.code") { value("ORGANIZATION_ALREADY_EXISTS") }
+            jsonPath("$.detail") { value("Esta conta já tem uma organização registada. Entre de novo para continuar.") }
+        }
     }
 
     @Test

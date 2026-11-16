@@ -168,4 +168,12 @@ class OrganizationProfileValidatorTest {
         assertThat((result as Validation.Invalid).errors.map { it.field }).containsExactly("version", "cae")
         assertThat(errors).containsOnlyKeys("cae")
     }
+
+    @Test
+    fun `numbers typed with too many characters are refused before stripping`() {
+        val padded = "509 180 027" + " ".repeat(20)
+
+        assertThat(errorsOf(validInput().copy(nif = padded))["nif"]).isEqualTo("Use no máximo 20 caracteres.")
+        assertThat(errorsOf(validInput().copy(contacts = ContactsInput("2".repeat(21), "geral@empresa.pt")))).containsKey("contacts.phone")
+    }
 }

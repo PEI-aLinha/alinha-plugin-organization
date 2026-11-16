@@ -23,7 +23,11 @@ internal object MaxLength {
 /** ASCII digits only: `Char.isDigit` would also accept other scripts' digits, which the database refuses. */
 fun digits(value: String): String = value.filter { it in '0'..'9' }
 
+/** Raw length limit of NIF, CAE and phones, before spaces, dots and dashes are removed. */
+private const val MAX_NUMBER_INPUT = 20
+
 private fun typedAsNumber(value: String?) = value == null || NUMBER_TYPING.matches(value)
+private fun tooLongNumber(value: String?) = (value?.length ?: 0) > MAX_NUMBER_INPUT
 
 /** Portuguese NIF: 9 digits, the last one a mod-11 check digit (same rule as the registration wizard). */
 fun isValidNif(value: String): Boolean {
@@ -61,6 +65,7 @@ object OrganizationProfileValidator {
 
         val nif = digits(input.nif.orEmpty())
         when {
+            tooLongNumber(input.nif) -> fail("nif", "Use no máximo $MAX_NUMBER_INPUT caracteres.")
             !typedAsNumber(input.nif) -> fail("nif", "O NIF só tem números.")
             nif.isEmpty() -> fail("nif", "Indique o NIF da empresa.")
             nif.length != NIF_LENGTH -> fail("nif", "O NIF tem 9 dígitos. Este tem ${nif.length}.")
@@ -69,6 +74,7 @@ object OrganizationProfileValidator {
 
         val cae = digits(input.cae.orEmpty())
         when {
+            tooLongNumber(input.cae) -> fail("cae", "Use no máximo $MAX_NUMBER_INPUT caracteres.")
             !typedAsNumber(input.cae) -> fail("cae", "O código CAE só tem números. Exemplo: 29320.")
             cae.isEmpty() -> fail("cae", "Indique o código CAE principal.")
             cae.length != CAE_LENGTH -> fail("cae", "O código CAE tem 5 dígitos. Exemplo: 29320.")
@@ -119,6 +125,7 @@ object OrganizationProfileValidator {
 
         val phone = digits(input.contacts?.phone.orEmpty())
         when {
+            tooLongNumber(input.contacts?.phone) -> fail("contacts.phone", "Use no máximo $MAX_NUMBER_INPUT caracteres.")
             !typedAsNumber(input.contacts?.phone) -> fail("contacts.phone", "O telefone só tem números.")
             phone.isEmpty() -> fail("contacts.phone", "Indique o telefone da empresa.")
             !PHONE.matches(phone) -> fail("contacts.phone", "O telefone tem 9 dígitos e começa por 2 ou 9.")
@@ -137,6 +144,7 @@ object OrganizationProfileValidator {
         }
         val contactPhone = digits(input.permanentContact?.phone.orEmpty())
         when {
+            tooLongNumber(input.permanentContact?.phone) -> fail("permanentContact.phone", "Use no máximo $MAX_NUMBER_INPUT caracteres.")
             !typedAsNumber(input.permanentContact?.phone) -> fail("permanentContact.phone", "O telefone só tem números.")
             contactPhone.isEmpty() -> fail("permanentContact.phone", "Indique um telefone disponível a qualquer hora.")
             !PHONE.matches(contactPhone) -> fail("permanentContact.phone", "O telefone tem 9 dígitos e começa por 2 ou 9.")

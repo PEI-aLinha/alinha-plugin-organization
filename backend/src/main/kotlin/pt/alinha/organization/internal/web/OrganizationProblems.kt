@@ -2,13 +2,20 @@ package pt.alinha.organization.internal.web
 
 import org.springframework.http.HttpStatus
 import org.springframework.http.ProblemDetail
+import org.springframework.http.ResponseEntity
 import org.springframework.orm.ObjectOptimisticLockingFailureException
+import org.springframework.web.ErrorResponseException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import pt.alinha.organization.internal.InvalidOrganizationException
 import pt.alinha.organization.internal.NifAlreadyRegisteredException
 import pt.alinha.organization.internal.OrganizationNotRegisteredException
 import pt.alinha.organization.internal.StaleVersionException
+
+private val CORE_MESSAGES = mapOf(
+    "ORGANIZATION_ALREADY_EXISTS" to "Esta conta já tem uma organização registada. Entre de novo para continuar.",
+    "IDENTITY_UNAVAILABLE" to "Não foi possível concluir o registo agora. Tente novamente dentro de alguns minutos.",
+)
 
 /** RFC 9457 Problem Details with `code` and `errors` (ADR 0003). `detail` is shown to the user, in Portuguese. */
 @RestControllerAdvice(basePackageClasses = [OrganizationController::class])
@@ -33,6 +40,17 @@ class OrganizationProblems {
         HttpStatus.CONFLICT, "VERSION_CONFLICT",
         "Os dados foram alterados entretanto. Recarregue a página e volte a fazer as alterações.",
     )
+
+    /**
+     * Errors raised by the core while registering (TenantProvisioning) carry a `code` in their Problem Details
+     * body. Return that body, with the message in Portuguese for the ones the user can see.
+     */
+    @ExceptionHandler
+    fun core(e: ErrorResponseException): ResponseEntity<ProblemDetail> {
+        val body = e.body
+        CORE_MESSAGES[body.properties?.get("code")]?.let { body.detail = it }
+        return ResponseEntity.status(e.statusCode).body(body)
+    }
 
     private fun problem(status: HttpStatus, code: String, detail: String) =
         ProblemDetail.forStatusAndDetail(status, detail).apply { setProperty("code", code) }
