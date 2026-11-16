@@ -6,8 +6,24 @@ private const val MIN_SERVICES_LENGTH = 10
 private val POSTAL_CODE = Regex("""^\d{4}-\d{3}$""")
 private val PHONE = Regex("""^[29]\d{8}$""")
 private val WHITESPACE = Regex("""\s""")
+/** NIF, CAE and phones may be typed with spaces, dots or dashes, never letters or non-ASCII digits. */
+private val NUMBER_TYPING = Regex("""^[0-9 .\-]*$""")
+private const val MAX_EMPLOYEES = 10_000_000L
 
-fun digits(value: String): String = value.filter(Char::isDigit)
+/** Maximum lengths of the free-text fields (also enforced by the database). */
+internal object MaxLength {
+    const val NAME = 200
+    const val SERVICES = 2000
+    const val STREET = 300
+    const val CITY = 120
+    const val EMAIL = 254
+    const val CONTACT_NAME = 120
+}
+
+/** ASCII digits only: `Char.isDigit` would also accept other scripts' digits, which the database refuses. */
+fun digits(value: String): String = value.filter { it in '0'..'9' }
+
+private fun typedAsNumber(value: String?) = value == null || NUMBER_TYPING.matches(value)
 
 /** Portuguese NIF: 9 digits, the last one a mod-11 check digit (same rule as the registration wizard). */
 fun isValidNif(value: String): Boolean {
@@ -33,15 +49,19 @@ fun isValidEmail(value: String): Boolean {
  */
 object OrganizationProfileValidator {
 
-    fun validate(input: OrganizationProfileInput): Validation {
-        val errors = mutableListOf<FieldError>()
+    fun validate(input: OrganizationProfileInput, extraErrors: List<FieldError> = emptyList()): Validation {
+        val errors = extraErrors.toMutableList()
         fun fail(field: String, message: String) { errors += FieldError(field, message) }
 
         val name = input.name.clean()
-        if (name.isEmpty()) fail("name", "Indique o nome da empresa, como está na certidão permanente.")
+        when {
+            name.isEmpty() -> fail("name", "Indique o nome da empresa, como está na certidão permanente.")
+            name.length > MaxLength.NAME -> fail("name", tooLong(MaxLength.NAME))
+        }
 
         val nif = digits(input.nif.orEmpty())
         when {
+            !typedAsNumber(input.nif) -> fail("nif", "O NIF só tem números.")
             nif.isEmpty() -> fail("nif", "Indique o NIF da empresa.")
             nif.length != NIF_LENGTH -> fail("nif", "O NIF tem 9 dígitos. Este tem ${nif.length}.")
             !isValidNif(nif) -> fail("nif", "Este NIF não é válido. Confirme se algum número está trocado.")
@@ -49,6 +69,7 @@ object OrganizationProfileValidator {
 
         val cae = digits(input.cae.orEmpty())
         when {
+            !typedAsNumber(input.cae) -> fail("cae", "O código CAE só tem números. Exemplo: 29320.")
             cae.isEmpty() -> fail("cae", "Indique o código CAE principal.")
             cae.length != CAE_LENGTH -> fail("cae", "O código CAE tem 5 dígitos. Exemplo: 29320.")
         }
@@ -62,14 +83,16 @@ object OrganizationProfileValidator {
         }
 
         val services = input.services.clean()
-        if (services.length < MIN_SERVICES_LENGTH) {
-            fail("services", "Descreva em poucas palavras o que a empresa faz ou vende.")
+        when {
+            services.length < MIN_SERVICES_LENGTH -> fail("services", "Descreva em poucas palavras o que a empresa faz ou vende.")
+            services.length > MaxLength.SERVICES -> fail("services", tooLong(MaxLength.SERVICES))
         }
 
         val employees = input.employees
         when {
             employees == null -> fail("employees", "Indique quantas pessoas trabalham na empresa.")
-            employees < 1 || employees > Int.MAX_VALUE -> fail("employees", "Use só números inteiros. Exemplo: 120.")
+            employees < 1 -> fail("employees", "A empresa tem de ter pelo menos 1 trabalhador.")
+            employees > MAX_EMPLOYEES -> fail("employees", "Confirme o número de trabalhadores: parece demasiado alto.")
         }
 
         val turnover = input.turnover
@@ -79,30 +102,42 @@ object OrganizationProfileValidator {
         }
 
         val street = input.address?.street.clean()
-        if (street.isEmpty()) fail("address.street", "Indique a morada da sede.")
+        when {
+            street.isEmpty() -> fail("address.street", "Indique a morada da sede.")
+            street.length > MaxLength.STREET -> fail("address.street", tooLong(MaxLength.STREET))
+        }
         val postalCode = input.address?.postalCode.clean()
         when {
             postalCode.isEmpty() -> fail("address.postalCode", "Indique o código postal.")
             !POSTAL_CODE.matches(postalCode) -> fail("address.postalCode", "Use o formato 0000-000.")
         }
         val city = input.address?.city.clean()
-        if (city.isEmpty()) fail("address.city", "Indique a localidade.")
+        when {
+            city.isEmpty() -> fail("address.city", "Indique a localidade.")
+            city.length > MaxLength.CITY -> fail("address.city", tooLong(MaxLength.CITY))
+        }
 
         val phone = digits(input.contacts?.phone.orEmpty())
         when {
+            !typedAsNumber(input.contacts?.phone) -> fail("contacts.phone", "O telefone só tem números.")
             phone.isEmpty() -> fail("contacts.phone", "Indique o telefone da empresa.")
             !PHONE.matches(phone) -> fail("contacts.phone", "O telefone tem 9 dígitos e começa por 2 ou 9.")
         }
         val email = input.contacts?.email.clean().lowercase()
         when {
             email.isEmpty() -> fail("contacts.email", "Indique o email geral da empresa.")
+            email.length > MaxLength.EMAIL -> fail("contacts.email", tooLong(MaxLength.EMAIL))
             !isValidEmail(email) -> fail("contacts.email", "Este email não parece válido. Exemplo: geral@empresa.pt")
         }
 
         val contactName = input.permanentContact?.name.clean()
-        if (contactName.isEmpty()) fail("permanentContact.name", "Indique quem é o ponto de contacto permanente.")
+        when {
+            contactName.isEmpty() -> fail("permanentContact.name", "Indique quem é o ponto de contacto permanente.")
+            contactName.length > MaxLength.CONTACT_NAME -> fail("permanentContact.name", tooLong(MaxLength.CONTACT_NAME))
+        }
         val contactPhone = digits(input.permanentContact?.phone.orEmpty())
         when {
+            !typedAsNumber(input.permanentContact?.phone) -> fail("permanentContact.phone", "O telefone só tem números.")
             contactPhone.isEmpty() -> fail("permanentContact.phone", "Indique um telefone disponível a qualquer hora.")
             !PHONE.matches(contactPhone) -> fail("permanentContact.phone", "O telefone tem 9 dígitos e começa por 2 ou 9.")
         }
@@ -126,4 +161,6 @@ object OrganizationProfileValidator {
     }
 
     private fun String?.clean(): String = this?.trim().orEmpty()
+
+    private fun tooLong(max: Int) = "Use no máximo $max caracteres."
 }

@@ -12,6 +12,7 @@ import pt.alinha.organization.api.OrganizationApi
 import pt.alinha.organization.api.OrganizationProfileView
 import pt.alinha.organization.api.PermanentContactView
 import pt.alinha.organization.events.OrganizationRegistered
+import pt.alinha.organization.internal.domain.FieldError
 import pt.alinha.organization.internal.domain.OrganizationProfile
 import pt.alinha.organization.internal.domain.OrganizationProfileInput
 import pt.alinha.organization.internal.domain.OrganizationProfileValidator
@@ -57,9 +58,14 @@ class OrganizationService(
     /** Updates the current tenant's organization. [version] must match, so a stale form cannot overwrite changes. */
     @Transactional
     fun update(input: OrganizationProfileInput, version: Long?): OrganizationProfileView {
-        val profile = validated(input)
+        val missingVersion = if (version == null) {
+            listOf(FieldError("version", "Recarregue a página e volte a fazer as alterações."))
+        } else {
+            emptyList()
+        }
+        val profile = validated(input, missingVersion)
         val entity = profiles.findFirstBy() ?: throw OrganizationNotRegisteredException()
-        if (version == null || version != entity.version) throw StaleVersionException()
+        if (version != entity.version) throw StaleVersionException()
         val changed = entity.update(profile, Instant.now())
         if (changed.isEmpty()) return entity.toView()
         val saved = save(entity)
@@ -67,8 +73,8 @@ class OrganizationService(
         return saved.toView()
     }
 
-    private fun validated(input: OrganizationProfileInput): OrganizationProfile =
-        when (val result = OrganizationProfileValidator.validate(input)) {
+    private fun validated(input: OrganizationProfileInput, extraErrors: List<FieldError> = emptyList()): OrganizationProfile =
+        when (val result = OrganizationProfileValidator.validate(input, extraErrors)) {
             is Validation.Valid -> result.profile
             is Validation.Invalid -> throw InvalidOrganizationException(result.errors)
         }

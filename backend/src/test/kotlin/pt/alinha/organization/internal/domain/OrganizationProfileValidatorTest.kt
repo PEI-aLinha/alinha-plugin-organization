@@ -129,4 +129,43 @@ class OrganizationProfileValidatorTest {
             assertThat(isValidEmail(it)).describedAs(it).isFalse()
         }
     }
+
+    @Test
+    fun `non-ASCII digits and letters are refused, spaces dots and dashes are not`() {
+        assertThat(errorsOf(validInput().copy(nif = "٥٠٩١٨٠٠٢٧"))).containsKey("nif")
+        assertThat(errorsOf(validInput().copy(nif = "abc509180027"))["nif"]).isEqualTo("O NIF só tem números.")
+        assertThat(errorsOf(validInput().copy(cae = "２９３２０"))).containsKey("cae")
+        assertThat(errorsOf(validInput().copy(nif = "509.180-027"))).doesNotContainKey("nif")
+    }
+
+    @Test
+    fun `free text has a maximum length`() {
+        val errors = errorsOf(
+            validInput().copy(
+                name = "a".repeat(MaxLength.NAME + 1),
+                services = "a".repeat(MaxLength.SERVICES + 1),
+                address = AddressInput("a".repeat(MaxLength.STREET + 1), "3750-750", "a".repeat(MaxLength.CITY + 1)),
+            ),
+        )
+
+        assertThat(errors).containsOnlyKeys("name", "services", "address.street", "address.city")
+        assertThat(errors["name"]).isEqualTo("Use no máximo 200 caracteres.")
+        assertThat(errorsOf(validInput().copy(name = "a".repeat(MaxLength.NAME)))).isEmpty()
+    }
+
+    @Test
+    fun `an implausible number of employees has its own message`() {
+        assertThat(errorsOf(validInput().copy(employees = 50_000_000))["employees"])
+            .isEqualTo("Confirme o número de trabalhadores: parece demasiado alto.")
+    }
+
+    @Test
+    fun `extra errors are reported together with the field errors`() {
+        val errors = errorsOf(validInput().copy(cae = ""))
+
+        val result = OrganizationProfileValidator.validate(validInput().copy(cae = ""), listOf(FieldError("version", "x")))
+
+        assertThat((result as Validation.Invalid).errors.map { it.field }).containsExactly("version", "cae")
+        assertThat(errors).containsOnlyKeys("cae")
+    }
 }

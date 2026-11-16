@@ -212,4 +212,69 @@ class OrganizationIntegrationTest {
                 jsonPath("$.code") { value("ORGANIZATION_NOT_REGISTERED") }
             }
     }
+
+    @Test
+    fun `before registering there is no profile to read or edit`() {
+        val tenant = UUID.randomUUID()
+        mvc.get(PROFILE) { header("Authorization", "Bearer responsible.$sub.$tenant") }
+            .andExpect { status { isNotFound() } }
+        mvc.put(PROFILE) {
+            header("Authorization", "Bearer responsible.$sub.$tenant")
+            contentType = MediaType.APPLICATION_JSON
+            content = body(version = 0)
+        }.andExpect { status { isNotFound() } }
+    }
+
+    @Test
+    fun `a missing version is invalid data, not a conflict`() {
+        val tenant = registered()
+
+        mvc.put(PROFILE) {
+            header("Authorization", "Bearer responsible.$sub.$tenant")
+            contentType = MediaType.APPLICATION_JSON
+            content = body(nif = currentNif(tenant))
+        }.andExpect {
+            status { isUnprocessableContent() }
+            jsonPath("$.errors[0].field") { value("version") }
+        }
+    }
+
+    @Test
+    fun `changing to another organization's NIF is a 409`() {
+        val taken = freshNif()
+        registered(taken)
+        identity.assigned.clear()
+        sub = UUID.randomUUID().toString()
+        val tenant = registered()
+
+        mvc.put(PROFILE) {
+            header("Authorization", "Bearer responsible.$sub.$tenant")
+            contentType = MediaType.APPLICATION_JSON
+            content = body(nif = taken, version = 0)
+        }.andExpect {
+            status { isConflict() }
+            jsonPath("$.code") { value("NIF_ALREADY_REGISTERED") }
+        }
+        assertThat(currentNif(tenant)).isNotEqualTo(taken)
+    }
+
+    @Test
+    fun `saving the same data changes nothing and records nothing`() {
+        val tenant = registered()
+
+        mvc.put(PROFILE) {
+            header("Authorization", "Bearer responsible.$sub.$tenant")
+            contentType = MediaType.APPLICATION_JSON
+            content = body(nif = currentNif(tenant), version = 0)
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.version") { value(0) }
+        }
+        assertThat(
+            jdbc.queryForObject(
+                "select count(*) from audit.audit_event where tenant_id = ?::uuid and action = 'organization.updated'",
+                Long::class.java, tenant,
+            ),
+        ).isZero()
+    }
 }
