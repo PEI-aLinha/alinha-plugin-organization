@@ -16,6 +16,8 @@ dependencies {
     implementation(libs.spring.boot.starter.webmvc)
     implementation(libs.spring.boot.starter.data.jpa)
     implementation(libs.spring.modulith.starter.core)
+    // PSQLException's error fields name the violated constraint (NIF taken), independent of the server's language.
+    implementation(libs.postgresql)
 
     testImplementation(libs.spring.boot.starter.test)
     // Integration test: real core RBAC, tenant and audit beans on PostgreSQL (OrganizationIntegrationTest)
@@ -25,5 +27,4 @@ dependencies {
     testImplementation(libs.testcontainers.junit.jupiter)
     testImplementation(libs.testcontainers.postgresql)
     testRuntimeOnly(libs.flyway.postgresql)
-    testRuntimeOnly(libs.postgresql)
 }

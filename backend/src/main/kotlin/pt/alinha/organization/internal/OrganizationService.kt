@@ -1,5 +1,6 @@
 package pt.alinha.organization.internal
 
+import org.postgresql.util.PSQLException
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Service
@@ -24,7 +25,7 @@ import java.time.Instant
 import java.util.UUID
 
 internal const val ENTITY_TYPE = "organization"
-private const val NIF_CONSTRAINT = "organization_profile_nif_uq"
+internal const val NIF_CONSTRAINT = "organization_profile_nif_uq"
 
 @Service
 class OrganizationService(
@@ -90,10 +91,20 @@ class OrganizationService(
         try {
             profiles.saveAndFlush(entity)
         } catch (e: DataIntegrityViolationException) {
-            if (e.mostSpecificCause.message.orEmpty().contains(NIF_CONSTRAINT)) throw NifAlreadyRegisteredException()
+            if (violatedConstraint(e) == NIF_CONSTRAINT) throw NifAlreadyRegisteredException()
             throw e
         }
 }
+
+/**
+ * The constraint PostgreSQL names in its error fields. Not parsed from the message, whose wording depends on the
+ * server's `lc_messages` (and so does Hibernate's own extraction).
+ */
+internal fun violatedConstraint(e: Throwable): String? =
+    generateSequence(e) { it.cause }.take(MAX_CAUSE_DEPTH)
+        .filterIsInstance<PSQLException>().firstOrNull()?.serverErrorMessage?.constraint
+
+private const val MAX_CAUSE_DEPTH = 20
 
 internal fun OrganizationProfileEntity.toView() = OrganizationProfileView(
     id = id,
