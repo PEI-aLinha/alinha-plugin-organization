@@ -66,7 +66,7 @@ class OrganizationTestApplication {
     @Primary
     fun testJwtDecoder(): JwtDecoder = JwtDecoder { token ->
         val (role, sub, tenant) = (token.split(".") + listOf("", "")).take(3)
-        val builder = Jwt.withTokenValue(token).header("alg", "none").subject(sub)
+        val builder = Jwt.withTokenValue(token).header("alg", "none").subject(sub).claim("email_verified", true)
             .claim("realm_access", mapOf("roles" to listOf(role)))
         when {
             tenant.isEmpty() -> Unit
