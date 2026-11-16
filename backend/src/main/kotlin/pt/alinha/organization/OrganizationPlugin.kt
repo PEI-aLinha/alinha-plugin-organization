@@ -13,8 +13,21 @@ class OrganizationPlugin : AlinhaPlugin {
         name = "Organization",
         kind = PluginKind.FEATURE,
         version = "0.1.0",
-        publishes = setOf(),
+        publishes = setOf("OrganizationRegistered"),
         consumes = setOf(),
-        permissions = setOf(),
+        permissions = setOf(REGISTER, READ, EDIT),
+        rolePermissions = mapOf(
+            // A new account (ADR 0004) may only register its organization.
+            "registrant" to setOf(REGISTER),
+            "responsible" to setOf(READ, EDIT),
+            "consultant" to setOf(READ, EDIT),
+            "analyst" to setOf(READ),
+        ),
     )
+
+    companion object {
+        const val REGISTER = "organization:register"
+        const val READ = "organization:read"
+        const val EDIT = "organization:edit"
+    }
 }
