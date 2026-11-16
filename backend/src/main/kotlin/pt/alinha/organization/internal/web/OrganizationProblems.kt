@@ -45,13 +45,14 @@ class OrganizationProblems {
 
     /**
      * Errors raised by the core while registering (TenantProvisioning) carry a `code` in their Problem Details
-     * body. Return that body, with the message in Portuguese for the ones the user can see.
+     * body. Return that body, with the message in Portuguese for the ones the user can see, and their headers
+     * (`Retry-After` on 429 and 503).
      */
     @ExceptionHandler
     fun core(e: ErrorResponseException): ResponseEntity<ProblemDetail> {
         val body = e.body
         CORE_MESSAGES[body.properties?.get("code")]?.let { body.detail = it }
-        return ResponseEntity.status(e.statusCode).body(body)
+        return ResponseEntity.status(e.statusCode).headers(e.headers).body(body)
     }
 
     private fun problem(status: HttpStatus, code: String, detail: String) =

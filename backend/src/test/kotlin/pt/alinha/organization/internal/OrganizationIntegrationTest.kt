@@ -59,6 +59,7 @@ class OrganizationIntegrationTest {
     fun newAccount() {
         sub = UUID.randomUUID().toString()
         identity.assigned.clear()
+        identity.failOnAssign = false
     }
 
     /** A NIF with a valid check digit that no other test uses (the NIF is unique across tenants). */
@@ -140,6 +141,19 @@ class OrganizationIntegrationTest {
             jsonPath("$.code") { value("NIF_ALREADY_REGISTERED") }
         }
         assertThat(jdbc.queryForObject("select count(*) from core.tenant where owner_subject = ?", Long::class.java, other)).isZero()
+    }
+
+    @Test
+    fun `an identity provider failure is a 503 with Retry-After and a Portuguese message, and creates nothing`() {
+        identity.failOnAssign = true
+
+        register().andExpect {
+            status { isServiceUnavailable() }
+            header { string("Retry-After", "60") }
+            jsonPath("$.code") { value("IDENTITY_UNAVAILABLE") }
+            jsonPath("$.detail") { value("Não foi possível concluir o registo agora. Tente novamente dentro de alguns minutos.") }
+        }
+        assertThat(jdbc.queryForObject("select count(*) from core.tenant where owner_subject = ?", Long::class.java, sub)).isZero()
     }
 
     @ParameterizedTest(name = "{0} cannot register an organization")

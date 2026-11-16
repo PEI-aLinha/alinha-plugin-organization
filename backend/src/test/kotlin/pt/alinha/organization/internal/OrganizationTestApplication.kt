@@ -31,11 +31,13 @@ import pt.alinha.organization.internal.web.OrganizationProblems
 import pt.alinha.pluginapi.TenantId
 import java.util.Collections
 
-/** Records assignments instead of calling Keycloak. */
+/** Records assignments instead of calling Keycloak; can be told to fail. */
 class FakeIdentityDirectory : IdentityDirectory {
     val assigned: MutableList<Pair<String, TenantId>> = Collections.synchronizedList(mutableListOf())
+    @Volatile var failOnAssign = false
 
     override fun assignTenant(subject: String, tenantId: TenantId) {
+        if (failOnAssign) error("identity provider down")
         assigned += subject to tenantId
     }
 
