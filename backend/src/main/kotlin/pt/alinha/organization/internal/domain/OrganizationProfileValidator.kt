@@ -6,6 +6,10 @@ private const val MIN_SERVICES_LENGTH = 10
 private val POSTAL_CODE = Regex("""^\d{4}-\d{3}$""")
 private val PHONE = Regex("""^[29]\d{8}$""")
 private val WHITESPACE = Regex("""\s""")
+/** Control characters (Unicode Cc: tabs, line breaks, NUL, escape, C1) together with the spaces around them. */
+private val CONTROL_OR_SPACE = Regex("""[\p{Cc}\s]+""")
+/** Control characters other than the line break. */
+private val CONTROL_BUT_NEWLINE = Regex("""[\p{Cc}&&[^\n]]""")
 /** NIF, CAE and phones may be typed with spaces, dots or dashes, never letters or non-ASCII digits. */
 private val NUMBER_TYPING = Regex("""^[0-9 .\-]*$""")
 private const val MAX_EMPLOYEES = 10_000_000L
@@ -57,7 +61,7 @@ object OrganizationProfileValidator {
         val errors = extraErrors.toMutableList()
         fun fail(field: String, message: String) { errors += FieldError(field, message) }
 
-        val name = input.name.clean()
+        val name = input.name.singleLine()
         when {
             name.isEmpty() -> fail("name", "Indique o nome da empresa, como está na certidão permanente.")
             name.length > MaxLength.NAME -> fail("name", tooLong(MaxLength.NAME))
@@ -81,14 +85,14 @@ object OrganizationProfileValidator {
         }
 
         val sector = Sectors.byId(input.sector)
-        val subsector = input.subsector.clean().ifEmpty { null }
+        val subsector = input.subsector.singleLine().ifEmpty { null }
         when {
             sector == null -> fail("sector", "Escolha o setor de atividade.")
             sector.subsectors.isEmpty() && subsector != null -> fail("subsector", "Este setor não tem subsetores.")
             sector.subsectors.isNotEmpty() && subsector !in sector.subsectors -> fail("subsector", "Escolha o subsetor.")
         }
 
-        val services = input.services.clean()
+        val services = input.services.multiLine()
         when {
             services.length < MIN_SERVICES_LENGTH -> fail("services", "Descreva em poucas palavras o que a empresa faz ou vende.")
             services.length > MaxLength.SERVICES -> fail("services", tooLong(MaxLength.SERVICES))
@@ -107,17 +111,17 @@ object OrganizationProfileValidator {
             turnover < 0 -> fail("turnover", "Use só números, em euros e sem cêntimos. Exemplo: 18 500 000.")
         }
 
-        val street = input.address?.street.clean()
+        val street = input.address?.street.singleLine()
         when {
             street.isEmpty() -> fail("address.street", "Indique a morada da sede.")
             street.length > MaxLength.STREET -> fail("address.street", tooLong(MaxLength.STREET))
         }
-        val postalCode = input.address?.postalCode.clean()
+        val postalCode = input.address?.postalCode.singleLine()
         when {
             postalCode.isEmpty() -> fail("address.postalCode", "Indique o código postal.")
             !POSTAL_CODE.matches(postalCode) -> fail("address.postalCode", "Use o formato 0000-000.")
         }
-        val city = input.address?.city.clean()
+        val city = input.address?.city.singleLine()
         when {
             city.isEmpty() -> fail("address.city", "Indique a localidade.")
             city.length > MaxLength.CITY -> fail("address.city", tooLong(MaxLength.CITY))
@@ -130,14 +134,14 @@ object OrganizationProfileValidator {
             phone.isEmpty() -> fail("contacts.phone", "Indique o telefone da empresa.")
             !PHONE.matches(phone) -> fail("contacts.phone", "O telefone tem 9 dígitos e começa por 2 ou 9.")
         }
-        val email = input.contacts?.email.clean().lowercase()
+        val email = input.contacts?.email.singleLine().lowercase()
         when {
             email.isEmpty() -> fail("contacts.email", "Indique o email geral da empresa.")
             email.length > MaxLength.EMAIL -> fail("contacts.email", tooLong(MaxLength.EMAIL))
             !isValidEmail(email) -> fail("contacts.email", "Este email não parece válido. Exemplo: geral@empresa.pt")
         }
 
-        val contactName = input.permanentContact?.name.clean()
+        val contactName = input.permanentContact?.name.singleLine()
         when {
             contactName.isEmpty() -> fail("permanentContact.name", "Indique quem é o ponto de contacto permanente.")
             contactName.length > MaxLength.CONTACT_NAME -> fail("permanentContact.name", tooLong(MaxLength.CONTACT_NAME))
@@ -168,7 +172,14 @@ object OrganizationProfileValidator {
         )
     }
 
-    private fun String?.clean(): String = this?.trim().orEmpty()
+    /**
+     * One-line text: control characters (line breaks included) become a space, runs of spaces become one, and the
+     * ends are trimmed. These fields end up in reports, where a stray line break or escape code breaks the layout.
+     */
+    private fun String?.singleLine(): String = this.orEmpty().replace(CONTROL_OR_SPACE, " ").trim()
+
+    /** Multi-line text: line breaks are kept (as `\n`), other control characters removed, the ends trimmed. */
+    private fun String?.multiLine(): String = this.orEmpty().replace("\r\n", "\n").replace(CONTROL_BUT_NEWLINE, "").trim()
 
     private fun tooLong(max: Int) = "Use no máximo $max caracteres."
 }

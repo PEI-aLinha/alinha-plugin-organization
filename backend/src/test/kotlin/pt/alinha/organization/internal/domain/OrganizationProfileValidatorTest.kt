@@ -139,6 +139,31 @@ class OrganizationProfileValidatorTest {
     }
 
     @Test
+    fun `control characters never reach one-line fields, and services keep their line breaks`() {
+        val result = OrganizationProfileValidator.validate(
+            validInput().copy(
+                name = "Componentes\nÁgueda,\u0000 Lda.",
+                services = "Fabrico de componentes.\r\nVenda a\u0007 fabricantes.",
+                address = AddressInput("Rua\tda Zona Industrial, 45", "3750-750", "Águeda\u0085"),
+                permanentContact = PermanentContactInput("Rui\u001b Santos", "912 345 678"),
+            ),
+        )
+
+        val profile = (result as Validation.Valid).profile
+        assertThat(profile.name).isEqualTo("Componentes Águeda, Lda.")
+        assertThat(profile.services).isEqualTo("Fabrico de componentes.\nVenda a fabricantes.")
+        assertThat(profile.address).isEqualTo(Address("Rua da Zona Industrial, 45", "3750-750", "Águeda"))
+        assertThat(profile.permanentContact.name).isEqualTo("Rui Santos")
+    }
+
+    @Test
+    fun `an email with a line break is invalid, not silently joined`() {
+        val errors = errorsOf(validInput().copy(contacts = ContactsInput("234 600 120", "geral@\ncompagueda.pt")))
+
+        assertThat(errors["contacts.email"]).isEqualTo("Este email não parece válido. Exemplo: geral@empresa.pt")
+    }
+
+    @Test
     fun `free text has a maximum length`() {
         val errors = errorsOf(
             validInput().copy(
