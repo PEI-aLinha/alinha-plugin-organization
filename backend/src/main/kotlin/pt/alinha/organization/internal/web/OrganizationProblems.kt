@@ -15,6 +15,7 @@ import pt.alinha.organization.internal.StaleVersionException
 private val CORE_MESSAGES = mapOf(
     "ORGANIZATION_ALREADY_EXISTS" to "Esta conta já tem uma organização registada. Entre de novo para continuar.",
     "IDENTITY_UNAVAILABLE" to "Não foi possível concluir o registo agora. Tente novamente dentro de alguns minutos.",
+    "REGISTRATION_BUSY" to "Estamos a receber muitos registos neste momento. Tente novamente dentro de alguns minutos.",
 )
 
 /** RFC 9457 Problem Details with `code` and `errors` (ADR 0003). `detail` is shown to the user, in Portuguese. */
