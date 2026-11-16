@@ -41,7 +41,11 @@ class OrganizationIntegrationTest {
     companion object {
         @DynamicPropertySource
         @JvmStatic
-        fun properties(registry: DynamicPropertyRegistry) = OrganizationDatabase.register(registry)
+        fun properties(registry: DynamicPropertyRegistry) {
+            OrganizationDatabase.register(registry)
+            // MockMvc requests all come from 127.0.0.1; the per-client limit is tested in the core.
+            registry.add("alinha.provisioning.max-per-client-per-hour") { 1_000 }
+        }
     }
 
     @Autowired private lateinit var mvc: MockMvc
