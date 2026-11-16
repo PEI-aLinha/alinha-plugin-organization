@@ -16,7 +16,7 @@ class OrganizationProblems {
 
     @ExceptionHandler
     fun invalid(e: InvalidOrganizationException) =
-        problem(HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", "Há dados por corrigir.").apply {
+        problem(HttpStatus.UNPROCESSABLE_CONTENT, "VALIDATION_FAILED", "Há dados por corrigir.").apply {
             setProperty("errors", e.errors.map { mapOf("field" to it.field, "message" to it.message) })
         }
 

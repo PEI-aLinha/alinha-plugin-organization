@@ -100,13 +100,13 @@ class OrganizationIntegrationTest {
     }
 
     @Test
-    fun `invalid data is a 400 with one message per field and creates nothing`() {
+    fun `invalid data is a 422 with one message per field and creates nothing`() {
         mvc.post(REGISTRATION) {
             header("Authorization", "Bearer registrant.$sub")
             contentType = MediaType.APPLICATION_JSON
             content = """{"name": "", "nif": "509180028"}"""
         }.andExpect {
-            status { isBadRequest() }
+            status { isUnprocessableContent() }
             jsonPath("$.code") { value("VALIDATION_FAILED") }
             jsonPath("$.errors[?(@.field == 'nif')].message") { value("Este NIF não é válido. Confirme se algum número está trocado.") }
         }
