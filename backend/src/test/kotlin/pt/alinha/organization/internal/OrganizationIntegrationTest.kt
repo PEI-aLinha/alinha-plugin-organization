@@ -244,22 +244,20 @@ class OrganizationIntegrationTest {
     }
 
     @Test
-    fun `changing to another organization's NIF is a 409`() {
-        val taken = freshNif()
-        registered(taken)
-        identity.assigned.clear()
-        sub = UUID.randomUUID().toString()
+    fun `the NIF cannot change after registration`() {
         val tenant = registered()
+        val original = currentNif(tenant)
 
         mvc.put(PROFILE) {
             header("Authorization", "Bearer responsible.$sub.$tenant")
             contentType = MediaType.APPLICATION_JSON
-            content = body(nif = taken, version = 0)
+            content = body(nif = freshNif(), version = 0)
         }.andExpect {
-            status { isConflict() }
-            jsonPath("$.code") { value("NIF_ALREADY_REGISTERED") }
+            status { isUnprocessableContent() }
+            jsonPath("$.errors[0].field") { value("nif") }
+            jsonPath("$.errors[0].message") { value("O NIF não pode ser alterado depois do registo.") }
         }
-        assertThat(currentNif(tenant)).isNotEqualTo(taken)
+        assertThat(currentNif(tenant)).isEqualTo(original)
     }
 
     @Test

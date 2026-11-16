@@ -55,7 +55,10 @@ class OrganizationService(
     @Transactional(readOnly = true)
     override fun currentProfile(): OrganizationProfileView? = profiles.findFirstBy()?.toView()
 
-    /** Updates the current tenant's organization. [version] must match, so a stale form cannot overwrite changes. */
+    /**
+     * Updates the current tenant's organization. [version] must match, so a stale form cannot overwrite changes.
+     * The NIF cannot change.
+     */
     @Transactional
     fun update(input: OrganizationProfileInput, version: Long?): OrganizationProfileView {
         val missingVersion = if (version == null) {
@@ -66,6 +69,10 @@ class OrganizationService(
         val profile = validated(input, missingVersion)
         val entity = profiles.findFirstBy() ?: throw OrganizationNotRegisteredException()
         if (version != entity.version) throw StaleVersionException()
+        // The NIF identifies the company: it is fixed at registration (product decision, organization#2).
+        if (profile.nif != entity.nif) {
+            throw InvalidOrganizationException(listOf(FieldError("nif", "O NIF não pode ser alterado depois do registo.")))
+        }
         val changed = entity.update(profile, Instant.now())
         if (changed.isEmpty()) return entity.toView()
         val saved = save(entity)
