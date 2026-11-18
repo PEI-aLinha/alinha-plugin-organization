@@ -2,6 +2,8 @@ package pt.alinha.organization
 
 import org.springframework.stereotype.Component
 import pt.alinha.pluginapi.AlinhaPlugin
+import pt.alinha.pluginapi.NavArea
+import pt.alinha.pluginapi.NavEntry
 import pt.alinha.pluginapi.PluginKind
 import pt.alinha.pluginapi.PluginManifest
 
@@ -23,6 +25,7 @@ class OrganizationPlugin : AlinhaPlugin {
             "consultant" to setOf(READ, EDIT),
             "analyst" to setOf(READ),
         ),
+        nav = listOf(NavEntry("Organização", "organization", NavArea.CLIENT, READ)),
     )
 
     companion object {
