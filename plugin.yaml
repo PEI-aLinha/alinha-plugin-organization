@@ -11,3 +11,8 @@ permissions:      # RBAC resources; role mapping lives in OrganizationPlugin.kt
   - organization:register   # registrant: create the organization (ADR 0004)
   - organization:read       # responsible, consultant, analyst
   - organization:edit       # responsible, consultant
+nav:              # menu entries; GET /api/plugins shows each one only to roles with its permission
+  - label: "Organização"
+    path: organization
+    area: client
+    permission: organization:read
