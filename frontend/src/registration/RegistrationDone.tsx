@@ -3,8 +3,11 @@ import { buttonClass } from './fields'
 import type { OrganizationForm } from './organizationForm'
 import { Summary } from './Summary'
 
-/** End of the wizard: the organization is registered and the account is now its designated responsible person. */
-export function RegistrationDone({ name, form }: { name: string; form: OrganizationForm }) {
+/**
+ * End of the wizard: the organization is registered and the account is now its designated responsible person.
+ * Without `form`, the user registered on an earlier visit and only needs to sign in again.
+ */
+export function RegistrationDone({ name, form }: { name: string; form?: OrganizationForm }) {
   const { reauthenticate } = useHost()
   return (
     <div className="flex flex-col gap-6">
@@ -12,10 +15,12 @@ export function RegistrationDone({ name, form }: { name: string; form: Organizat
         <p className="text-sm font-semibold uppercase tracking-wide text-gray-600">Registo concluído</p>
         <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">A {name} está registada</h1>
         <p className="text-base text-gray-700">
-          A organização ficou associada à sua conta. É o Responsável designado: vê toda a informação da empresa e pode convidar a sua equipa.
+          {form
+            ? 'A organização ficou associada à sua conta. É o Responsável designado: vê toda a informação da empresa e pode convidar a sua equipa.'
+            : 'O registo já foi feito. Entre de novo para abrir a área da sua organização.'}
         </p>
       </header>
-      <Summary form={form} />
+      {form && <Summary form={form} />}
       <div>
         {/* A new sign-in brings the token with the new organization (ADR 0004). */}
         <button type="button" className={`${buttonClass.primary} max-sm:w-full`} onClick={() => reauthenticate('/')}>

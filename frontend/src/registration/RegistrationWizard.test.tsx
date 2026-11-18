@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { ApiError, type PluginHost } from '@alinha/plugin-sdk'
-import { loadDraft, saveDraft } from './draft'
+import { loadDraft, markRegistered, registeredName, saveDraft } from './draft'
 import { EMPTY_ORGANIZATION } from './organizationForm'
 import { RegistrationWizard } from './RegistrationWizard'
 import { VALID } from '../test/fixtures'
@@ -108,8 +108,26 @@ describe('RegistrationWizard', () => {
     expect(init.method).toBe('POST')
     expect(JSON.parse(String(init.body))).toMatchObject({ nif: '509180027', employees: 120, contacts: { email: 'geral@compagueda.pt' } })
     expect(loadDraft('u1')).toBeNull()
+    expect(registeredName('u1')).toBe('Componentes Águeda, Lda.')
     click('Entrar na organização')
     expect(host.reauthenticate).toHaveBeenCalledWith('/')
+  })
+
+  it('offers to sign in again, not an empty form, when the account registered on an earlier visit', () => {
+    markRegistered('u1', 'Componentes Águeda, Lda.')
+    const { host } = renderWithHost(<RegistrationWizard />)
+    expect(screen.getByRole('heading', { name: 'A Componentes Águeda, Lda. está registada' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Denominação')).not.toBeInTheDocument()
+    click('Entrar na organização')
+    expect(host.reauthenticate).toHaveBeenCalledWith('/')
+  })
+
+  it('tells screen readers which steps are done', () => {
+    saveDraft('u1', VALID)
+    renderWithHost(<RegistrationWizard />, { url: '/?step=size' })
+    const steps = screen.getByRole('list', { name: 'Passos do registo' })
+    expect(steps.querySelectorAll('li')[0]).toHaveTextContent('Concluído')
+    expect(steps.querySelector('[aria-current="step"]')).toHaveTextContent('Dimensão')
   })
 
   it('shows the server field errors on their step', async () => {

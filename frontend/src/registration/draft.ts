@@ -64,3 +64,32 @@ export function clearDraft(userId: string): void {
     // Nothing to clear without storage.
   }
 }
+
+/**
+ * After the 201 the session token still says "no organization" until the user signs in again (ADR 0004, BFF #14).
+ * If they leave before that, the shell sends them back to the wizard: this mark lets it show "already registered"
+ * and the sign-in button instead of an empty form. It only holds the organization name.
+ */
+const DONE_PREFIX = 'alinha-registration-done:'
+
+export function markRegistered(userId: string, name: string): void {
+  try {
+    storage()?.setItem(`${DONE_PREFIX}${userId}`, JSON.stringify({ v: VERSION, name }))
+  } catch {
+    // Without storage the 409 ORGANIZATION_ALREADY_EXISTS still leads to a new sign-in.
+  }
+}
+
+/** The name of the organization this account already registered in this browser, or null. */
+export function registeredName(userId: string): string | null {
+  try {
+    const raw = storage()?.getItem(`${DONE_PREFIX}${userId}`)
+    if (!raw) return null
+    const parsed: unknown = JSON.parse(raw)
+    if (typeof parsed !== 'object' || parsed === null) return null
+    const { v, name } = parsed as { v?: unknown; name?: unknown }
+    return v === VERSION && typeof name === 'string' && name.trim() ? name : null
+  } catch {
+    return null
+  }
+}

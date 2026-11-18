@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { clearDraft, isEmptyForm, loadDraft, saveDraft } from './draft'
+import { clearDraft, isEmptyForm, loadDraft, markRegistered, registeredName, saveDraft } from './draft'
 import { EMPTY_ORGANIZATION } from './organizationForm'
 import { VALID } from '../test/fixtures'
 
@@ -11,6 +11,17 @@ describe('registration draft', () => {
     expect(saveDraft('u1', VALID)).toBe(true)
     expect(loadDraft('u1')).toEqual(VALID)
     expect(loadDraft('u2')).toBeNull()
+  })
+
+  it('remembers, per account, that the organization was registered', () => {
+    expect(registeredName('u1')).toBeNull()
+    markRegistered('u1', 'Acme, Lda.')
+    expect(registeredName('u1')).toBe('Acme, Lda.')
+    expect(registeredName('u2')).toBeNull()
+    localStorage.setItem('alinha-registration-done:u3', JSON.stringify({ v: 1, name: 7 }))
+    expect(registeredName('u3')).toBeNull()
+    localStorage.setItem('alinha-registration-done:u4', '{')
+    expect(registeredName('u4')).toBeNull()
   })
 
   it('clears the draft', () => {
