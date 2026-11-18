@@ -20,7 +20,7 @@ export function Stepper({ steps, current }: StepperProps) {
                 done ? 'bg-gray-200 text-gray-900' : active ? 'bg-gray-900 text-white' : 'border border-gray-300 text-gray-500'
               }`}
             >
-              {done ? <span aria-label="Concluído">✓</span> : i + 1}
+              {done ? <><span aria-hidden>✓</span><span className="sr-only">Concluído</span></> : i + 1}
             </span>
             <span className={`truncate text-sm max-sm:sr-only ${active ? 'font-bold text-gray-900' : 'text-gray-600'}`}>{step.label}</span>
             {i < steps.length - 1 && <span aria-hidden className={`h-px flex-1 ${done ? 'bg-gray-900' : 'bg-gray-200'}`} />}
