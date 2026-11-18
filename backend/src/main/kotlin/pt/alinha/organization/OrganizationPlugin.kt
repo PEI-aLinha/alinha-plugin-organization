@@ -25,7 +25,7 @@ class OrganizationPlugin : AlinhaPlugin {
             "consultant" to setOf(READ, EDIT),
             "analyst" to setOf(READ),
         ),
-        nav = listOf(NavEntry("Organização", "organization", NavArea.CLIENT, READ)),
+        nav = listOf(NavEntry("Organização", "organization", NavArea.CLIENT, resource = "organization")),
     )
 
     companion object {
