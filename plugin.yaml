@@ -15,4 +15,4 @@ nav:              # menu entries; GET /api/plugins shows each one only to roles 
   - label: "Organização"
     path: organization
     area: client
-    permission: organization:read
+    resource: organization       # checked as organization:read (action defaults to read)
