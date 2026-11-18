@@ -56,6 +56,16 @@ describe('validation', () => {
     expect(validateOrganization({ ...VALID, contactPhone: '9123456789012345678901' }).contactPhone).toBe('Use no máximo 20 caracteres.')
   })
 
+  it('accepts whole numbers grouped in thousands, never decimals', () => {
+    for (const ok of ['120', '1 000', '1 500 000', '1.500.000', '1000000'])
+      expect(validateOrganization({ ...VALID, employees: ok, turnover: ok })).toEqual({})
+    for (const bad of ['1.5', '18.5', '1 00', '12 3456', '1..000'])
+      expect(validateOrganization({ ...VALID, employees: bad, turnover: bad })).toMatchObject({
+        employees: 'Use só números inteiros. Exemplo: 120.',
+        turnover: expect.stringMatching(/Use só números/),
+      })
+  })
+
   it('asks for a subsector only when the sector has them', () => {
     expect(validateOrganization({ ...VALID, subsector: '' }).subsector).toBe('Escolha o subsetor.')
     expect(validateOrganization({ ...VALID, subsector: 'aereo' }).subsector).toBe('Escolha o subsetor.')
@@ -103,6 +113,10 @@ describe('toOrganizationInput', () => {
 
   it('sends no subsector when there is none', () => {
     expect(toOrganizationInput({ ...VALID, sector: 'saude', subsector: '' }).subsector).toBeNull()
+  })
+
+  it('drops a subsector left over from another sector', () => {
+    expect(toOrganizationInput({ ...VALID, sector: 'saude', subsector: 'automoveis' }).subsector).toBeNull()
   })
 })
 

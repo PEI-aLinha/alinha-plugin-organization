@@ -65,6 +65,12 @@ const POSTAL_CODE = /^\d{4}-\d{3}$/
 /** NIF, CAE, phones and amounts may be typed with spaces, dots or dashes, never letters. */
 const NUMBER_TYPING = /^[0-9 .-]*$/
 
+/**
+ * A whole number, plain or grouped in thousands with spaces or dots ("18 500 000", "18.500.000").
+ * "1.5" or "18.5" are refused: read as thousands they would silently become 15 or 185.
+ */
+const WHOLE_NUMBER = /^(\d+|\d{1,3}([ .]\d{3})+)$/
+
 export const digits = (value: string): string => value.replace(/[^0-9]/g, '')
 
 /** Portuguese NIF: 9 digits, the last one a mod-11 check digit (same rule as the backend). */
@@ -143,7 +149,7 @@ const RULES: Record<FieldKey, (f: OrganizationForm) => string | undefined> = {
   employees: (f) => {
     const raw = f.employees.trim()
     if (!raw) return 'Indique quantas pessoas trabalham na empresa.'
-    if (!/^[0-9][0-9 .]*$/.test(raw)) return 'Use só números inteiros. Exemplo: 120.'
+    if (!WHOLE_NUMBER.test(raw)) return 'Use só números inteiros. Exemplo: 120.'
     const n = Number(digits(raw))
     if (n < 1) return 'A empresa tem de ter pelo menos 1 trabalhador.'
     if (n > MAX_EMPLOYEES) return 'Confirme o número de trabalhadores: parece demasiado alto.'
@@ -152,7 +158,7 @@ const RULES: Record<FieldKey, (f: OrganizationForm) => string | undefined> = {
   turnover: (f) => {
     const raw = f.turnover.trim()
     if (!raw) return 'Indique o volume de negócios do último ano.'
-    if (!/^[0-9][0-9 .]*$/.test(raw)) return 'Use só números, em euros e sem cêntimos. Exemplo: 18 500 000.'
+    if (!WHOLE_NUMBER.test(raw)) return 'Use só números, em euros e sem cêntimos. Exemplo: 18 500 000.'
     if (digits(raw).replace(/^0+/, '').length > MAX_TURNOVER_DIGITS) return 'Confirme o volume de negócios: parece demasiado alto.'
     return undefined
   },
@@ -217,7 +223,8 @@ export function toOrganizationInput(f: OrganizationForm): OrganizationProfileInp
     nif: digits(f.nif),
     cae: digits(f.cae),
     sector: f.sector,
-    subsector: f.subsector || null,
+    // A subsector left over from another sector (e.g. an old draft) is not sent: the server would refuse it.
+    subsector: sectorById(f.sector)?.subsectors.length ? f.subsector || null : null,
     services: f.services.trim(),
     employees: Number(digits(f.employees)),
     turnover: Number(digits(f.turnover)),
