@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { ApiError, type PluginHost } from '@alinha/plugin-sdk'
-import { loadDraft, markRegistered, registeredName, saveDraft } from './draft'
+import { loadDraft, markRegistered, registration, saveDraft } from './draft'
 import { EMPTY_ORGANIZATION } from './organizationForm'
 import { RegistrationWizard } from './RegistrationWizard'
 import { VALID } from '../test/fixtures'
@@ -108,7 +108,7 @@ describe('RegistrationWizard', () => {
     expect(init.method).toBe('POST')
     expect(JSON.parse(String(init.body))).toMatchObject({ nif: '509180027', employees: 120, contacts: { email: 'geral@compagueda.pt' } })
     expect(loadDraft('u1')).toBeNull()
-    expect(registeredName('u1')).toBe('Componentes Águeda, Lda.')
+    expect(registration('u1')).toEqual({ name: 'Componentes Águeda, Lda.' })
     click('Entrar na organização')
     expect(host.reauthenticate).toHaveBeenCalledWith('/')
   })

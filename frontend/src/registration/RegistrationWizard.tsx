@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router'
 import { useMutation } from '@tanstack/react-query'
 import { ApiError, useHost } from '@alinha/plugin-sdk'
-import { clearDraft, loadDraft, markRegistered, registeredName, saveDraft } from './draft'
+import { clearDraft, loadDraft, markRegistered, registration, saveDraft } from './draft'
 import { buttonClass } from './fields'
 import {
   EMPTY_ORGANIZATION, STEPS, firstStepWithErrors, fromServerErrors, isStepId, stepIndex, toOrganizationInput,
@@ -48,7 +48,7 @@ export function RegistrationWizard() {
 function AccountRegistrationWizard({ userId, userName }: { userId: string; userName: string }) {
   const { api, reauthenticate } = useHost()
   const [restored] = useState(() => loadDraft(userId))
-  const [registeredBefore] = useState(() => registeredName(userId))
+  const [registeredBefore] = useState(() => registration(userId))
   const [form, setForm] = useState<OrganizationForm>(restored ?? EMPTY_ORGANIZATION)
   // Without `?step=`, start where the restored draft stopped (fixed once, so typing never moves the step).
   const [startStep] = useState<StepId>(() => (restored ? firstStepWithErrors(validateOrganization(restored)) ?? 'summary' : 'company'))
@@ -152,7 +152,7 @@ function AccountRegistrationWizard({ userId, userName }: { userId: string; userN
 
   if (registered) return <RegistrationDone name={registered.profile.name} form={registered.form} />
   // Registered earlier but never signed in again: the token is stale, so offer the sign-in, not an empty form.
-  if (registeredBefore) return <RegistrationDone name={registeredBefore} />
+  if (registeredBefore) return <RegistrationDone name={registeredBefore.name} />
 
   const index = stepIndex(step)
   const failure = register.isError ? describeFailure(register.error) : null

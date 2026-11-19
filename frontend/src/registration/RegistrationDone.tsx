@@ -5,15 +5,16 @@ import { Summary } from './Summary'
 
 /**
  * End of the wizard: the organization is registered and the account is now its designated responsible person.
- * Without `form`, the user registered on an earlier visit and only needs to sign in again.
+ * Without `form`, the user registered on an earlier visit and only needs to sign in again; `name` is null when
+ * that visit ended with a 409 (the account already had an organization), which does not say which one.
  */
-export function RegistrationDone({ name, form }: { name: string; form?: OrganizationForm }) {
+export function RegistrationDone({ name, form }: { name: string | null; form?: OrganizationForm }) {
   const { reauthenticate } = useHost()
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-2">
         <p className="text-sm font-semibold uppercase tracking-wide text-gray-600">Registo concluído</p>
-        <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">A {name} está registada</h1>
+        <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">{name ? `A ${name} está registada` : 'A sua organização já está registada'}</h1>
         <p className="text-base text-gray-700">
           {form
             ? 'A organização ficou associada à sua conta. É o Responsável designado: vê toda a informação da empresa e pode convidar a sua equipa.'

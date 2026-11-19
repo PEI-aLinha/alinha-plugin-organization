@@ -1,11 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { clearDraft, isEmptyForm, loadDraft, markRegistered, registeredName, saveDraft } from './draft'
+import { DONE_TTL_MS, DRAFT_TTL_MS, clearDraft, isEmptyForm, loadDraft, markRegistered, registration, saveDraft } from './draft'
 import { EMPTY_ORGANIZATION } from './organizationForm'
 import { VALID } from '../test/fixtures'
 
 describe('registration draft', () => {
   beforeEach(() => localStorage.clear())
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  const stored = (v: number, extra: object) => JSON.stringify({ v, savedAt: Date.now(), ...extra })
 
   it('saves and loads the form, per account', () => {
     expect(saveDraft('u1', VALID)).toBe(true)
@@ -14,14 +19,61 @@ describe('registration draft', () => {
   })
 
   it('remembers, per account, that the organization was registered', () => {
-    expect(registeredName('u1')).toBeNull()
+    expect(registration('u1')).toBeNull()
     markRegistered('u1', 'Acme, Lda.')
-    expect(registeredName('u1')).toBe('Acme, Lda.')
-    expect(registeredName('u2')).toBeNull()
-    localStorage.setItem('alinha-registration-done:u3', JSON.stringify({ v: 1, name: 7 }))
-    expect(registeredName('u3')).toBeNull()
+    expect(registration('u1')).toEqual({ name: 'Acme, Lda.' })
+    expect(registration('u2')).toBeNull()
     localStorage.setItem('alinha-registration-done:u4', '{')
-    expect(registeredName('u4')).toBeNull()
+    expect(registration('u4')).toBeNull()
+  })
+
+  it('remembers a registration without a name, and ignores a name that is not text', () => {
+    markRegistered('u1')
+    expect(registration('u1')).toEqual({ name: null })
+    localStorage.setItem('alinha-registration-done:u3', stored(2, { name: 7 }))
+    expect(registration('u3')).toEqual({ name: null })
+  })
+
+  it('forgets the registration after a day, so the form opens again', () => {
+    vi.useFakeTimers()
+    markRegistered('u1', 'Acme, Lda.')
+    vi.advanceTimersByTime(DONE_TTL_MS - 1)
+    expect(registration('u1')).toEqual({ name: 'Acme, Lda.' })
+    vi.advanceTimersByTime(1)
+    expect(registration('u1')).toBeNull()
+    expect(localStorage.getItem('alinha-registration-done:u1')).toBeNull()
+  })
+
+  it('drops a draft older than its time to live, and removes it from the browser', () => {
+    vi.useFakeTimers()
+    saveDraft('u1', VALID)
+    vi.advanceTimersByTime(DRAFT_TTL_MS - 1)
+    expect(loadDraft('u1')).toEqual(VALID)
+    vi.advanceTimersByTime(1)
+    expect(loadDraft('u1')).toBeNull()
+    expect(localStorage.getItem('alinha-registration-draft:u1')).toBeNull()
+  })
+
+  it('saving again restarts the time to live', () => {
+    vi.useFakeTimers()
+    saveDraft('u1', VALID)
+    vi.advanceTimersByTime(DRAFT_TTL_MS - 1)
+    saveDraft('u1', VALID)
+    vi.advanceTimersByTime(DRAFT_TTL_MS - 1)
+    expect(loadDraft('u1')).toEqual(VALID)
+  })
+
+  it('removes drafts with no date, a future date or an older format', () => {
+    for (const value of [
+      JSON.stringify({ v: 2, form: VALID }),
+      JSON.stringify({ v: 2, savedAt: Date.now() + 60_000, form: VALID }),
+      JSON.stringify({ v: 1, form: VALID }),
+      '{',
+    ]) {
+      localStorage.setItem('alinha-registration-draft:u1', value)
+      expect(loadDraft('u1')).toBeNull()
+      expect(localStorage.getItem('alinha-registration-draft:u1')).toBeNull()
+    }
   })
 
   it('clears the draft', () => {
@@ -38,16 +90,16 @@ describe('registration draft', () => {
   })
 
   it('reads back only known text fields', () => {
-    localStorage.setItem('alinha-registration-draft:u1', JSON.stringify({ v: 1, form: { name: 'Acme', nif: 5, evil: 'x' } }))
+    localStorage.setItem('alinha-registration-draft:u1', stored(2, { form: { name: 'Acme', nif: 5, evil: 'x' } }))
     expect(loadDraft('u1')).toEqual({ ...EMPTY_ORGANIZATION, name: 'Acme' })
   })
 
   it('ignores broken or old drafts', () => {
     localStorage.setItem('alinha-registration-draft:u1', '{')
     expect(loadDraft('u1')).toBeNull()
-    localStorage.setItem('alinha-registration-draft:u1', JSON.stringify({ v: 0, form: VALID }))
+    localStorage.setItem('alinha-registration-draft:u1', stored(0, { form: VALID }))
     expect(loadDraft('u1')).toBeNull()
-    localStorage.setItem('alinha-registration-draft:u1', JSON.stringify({ v: 1, form: 'x' }))
+    localStorage.setItem('alinha-registration-draft:u1', stored(2, { form: 'x' }))
     expect(loadDraft('u1')).toBeNull()
   })
 

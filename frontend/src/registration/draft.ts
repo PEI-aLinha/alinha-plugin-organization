@@ -4,9 +4,14 @@ import { EMPTY_ORGANIZATION, type FieldKey, type OrganizationForm } from './orga
  * "Save and resume": the server keeps no draft (organization#2), so the half-filled form lives in this browser,
  * one per account. localStorage may be missing or blocked (private window, policies): then the draft only lives
  * in memory and every function here quietly does nothing.
+ *
+ * The draft holds company and contact data in clear text, so it expires: a draft older than DRAFT_TTL_MS is
+ * ignored and removed the next time it is read, so an abandoned wizard does not leave it in the browser for good.
  */
 const KEY_PREFIX = 'alinha-registration-draft:'
-const VERSION = 1
+const VERSION = 2
+const DAY_MS = 24 * 60 * 60 * 1000
+export const DRAFT_TTL_MS = 7 * DAY_MS
 
 const keyFor = (userId: string) => `${KEY_PREFIX}${userId}`
 
@@ -18,6 +23,29 @@ function storage(): Storage | null {
   }
 }
 
+/**
+ * The stored value at `key` when it has this version and is younger than `ttlMs`. Anything else (expired, an older
+ * version, unreadable) is removed: it may still hold personal data and will never be read back.
+ */
+function readFresh(key: string, ttlMs: number): Record<string, unknown> | null {
+  const s = storage()
+  const raw = s?.getItem(key)
+  if (!raw) return null
+  let parsed: unknown = null
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    // Unreadable: removed below.
+  }
+  const { v, savedAt } = (typeof parsed === 'object' && parsed !== null ? parsed : {}) as { v?: unknown; savedAt?: unknown }
+  const age = typeof savedAt === 'number' ? Date.now() - savedAt : Number.NaN
+  if (v !== VERSION || !(age >= 0 && age < ttlMs)) {
+    s?.removeItem(key)
+    return null
+  }
+  return parsed as Record<string, unknown>
+}
+
 /** True when nothing has been typed yet (an empty form is not worth saving). */
 export const isEmptyForm = (form: OrganizationForm): boolean =>
   Object.values(form).every((v) => !v.trim())
@@ -25,11 +53,7 @@ export const isEmptyForm = (form: OrganizationForm): boolean =>
 /** The saved draft, or null. Only known text fields are read back: the stored value is untrusted. */
 export function loadDraft(userId: string): OrganizationForm | null {
   try {
-    const raw = storage()?.getItem(keyFor(userId))
-    if (!raw) return null
-    const parsed: unknown = JSON.parse(raw)
-    if (typeof parsed !== 'object' || parsed === null || (parsed as { v?: unknown }).v !== VERSION) return null
-    const form = (parsed as { form?: unknown }).form
+    const form = readFresh(keyFor(userId), DRAFT_TTL_MS)?.form
     if (typeof form !== 'object' || form === null) return null
     const fields = form as Record<string, unknown>
     const draft = Object.fromEntries(
@@ -50,7 +74,7 @@ export function saveDraft(userId: string, form: OrganizationForm): boolean {
   try {
     const s = storage()
     if (!s) return false
-    s.setItem(keyFor(userId), JSON.stringify({ v: VERSION, form }))
+    s.setItem(keyFor(userId), JSON.stringify({ v: VERSION, savedAt: Date.now(), form }))
     return true
   } catch {
     return false
@@ -68,27 +92,33 @@ export function clearDraft(userId: string): void {
 /**
  * After the 201 the session token still says "no organization" until the user signs in again (ADR 0004, BFF #14).
  * If they leave before that, the shell sends them back to the wizard: this mark lets it show "already registered"
- * and the sign-in button instead of an empty form. It only holds the organization name.
+ * and the sign-in button instead of an empty form. It holds the organization name when known (not after a 409).
+ * It expires after DONE_TTL_MS: the new sign-in it waits for takes minutes, and a mark that never expired would
+ * keep an account that is a `registrant` again (organization deleted) out of the form in this browser for good.
  */
 const DONE_PREFIX = 'alinha-registration-done:'
+export const DONE_TTL_MS = DAY_MS
 
-export function markRegistered(userId: string, name: string): void {
+/** What this account already registered in this browser: `name` is null when it is not known. */
+export interface Registered {
+  name: string | null
+}
+
+export function markRegistered(userId: string, name?: string): void {
   try {
-    storage()?.setItem(`${DONE_PREFIX}${userId}`, JSON.stringify({ v: VERSION, name }))
+    storage()?.setItem(`${DONE_PREFIX}${userId}`, JSON.stringify({ v: VERSION, savedAt: Date.now(), name: name ?? null }))
   } catch {
     // Without storage the 409 ORGANIZATION_ALREADY_EXISTS still leads to a new sign-in.
   }
 }
 
-/** The name of the organization this account already registered in this browser, or null. */
-export function registeredName(userId: string): string | null {
+/** The organization this account registered in this browser not long ago, or null. */
+export function registration(userId: string): Registered | null {
   try {
-    const raw = storage()?.getItem(`${DONE_PREFIX}${userId}`)
-    if (!raw) return null
-    const parsed: unknown = JSON.parse(raw)
-    if (typeof parsed !== 'object' || parsed === null) return null
-    const { v, name } = parsed as { v?: unknown; name?: unknown }
-    return v === VERSION && typeof name === 'string' && name.trim() ? name : null
+    const mark = readFresh(`${DONE_PREFIX}${userId}`, DONE_TTL_MS)
+    if (!mark) return null
+    const { name } = mark
+    return { name: typeof name === 'string' && name.trim() ? name : null }
   } catch {
     return null
   }
