@@ -182,6 +182,17 @@ describe('RegistrationWizard', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível concluir o registo.')
   })
 
+  it('shows the server message when a validation error names no field it knows', async () => {
+    saveDraft('u1', VALID)
+    const api = vi.fn(async () => {
+      throw problem(422, { code: 'VALIDATION_FAILED', detail: 'Há dados por corrigir.', errors: [{ field: 'unknownField', message: 'Recusado.' }] })
+    }) as unknown as PluginHost['api']
+    renderWithHost(<RegistrationWizard />, { url: '/?step=summary', host: { api } })
+    click('Registar organização')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Há dados por corrigir.')
+    expect(stepTitle()).toHaveTextContent('Confirme os dados')
+  })
+
   it('reads and saves no draft until the account is known', () => {
     vi.useFakeTimers()
     try {
