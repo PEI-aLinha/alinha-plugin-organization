@@ -60,6 +60,8 @@ function AccountRegistrationWizard({ userId, userName }: { userId: string; userN
   const formRef = useRef<HTMLFormElement>(null)
   const headingRef = useRef<HTMLHeadingElement>(null)
   const focusFirstError = useRef(false)
+  // Set once the server says the organization exists: a pending autosave must not bring the cleared draft back.
+  const finished = useRef(false)
 
   // The step cannot be ahead of the first incomplete one (no skipping through the URL).
   const firstIncomplete = firstStepWithErrors(validateOrganization(form)) ?? 'summary'
@@ -78,7 +80,9 @@ function AccountRegistrationWizard({ userId, userName }: { userId: string; userN
   // Saves the draft shortly after each change, until the organization is registered.
   useEffect(() => {
     if (registered) return undefined
-    const timer = window.setTimeout(() => saveDraft(userId, form), AUTOSAVE_DELAY_MS)
+    const timer = window.setTimeout(() => {
+      if (!finished.current) saveDraft(userId, form)
+    }, AUTOSAVE_DELAY_MS)
     return () => window.clearTimeout(timer)
   }, [form, userId, registered])
 
@@ -113,6 +117,7 @@ function AccountRegistrationWizard({ userId, userName }: { userId: string; userN
     const body = toOrganizationInput(form)
     register.mutate(body, {
       onSuccess: (profile) => {
+        finished.current = true
         clearDraft(userId)
         markRegistered(userId, profile.name)
         setRegistered({ profile, form })
@@ -120,7 +125,10 @@ function AccountRegistrationWizard({ userId, userName }: { userId: string; userN
       onError: (error) => {
         const failure = describeFailure(error)
         if ('reauthenticate' in failure) {
+          // The 409 carries no name. The mark still turns a return here, before the new token, into "already registered".
+          finished.current = true
           clearDraft(userId)
+          markRegistered(userId)
           reauthenticate('/')
         } else if ('fields' in failure) {
           setServerErrors(failure.fields)

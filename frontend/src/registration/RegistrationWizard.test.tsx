@@ -162,6 +162,25 @@ describe('RegistrationWizard', () => {
     click('Registar organização')
     await waitFor(() => expect(host.reauthenticate).toHaveBeenCalledWith('/'))
     expect(loadDraft('u1')).toBeNull()
+    expect(registration('u1')).toEqual({ name: null })
+  })
+
+  it('shows "already registered" when the account comes back after a 409, before signing in again', () => {
+    markRegistered('u1')
+    renderWithHost(<RegistrationWizard />)
+    expect(screen.getByRole('heading', { name: 'A sua organização já está registada' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Denominação')).not.toBeInTheDocument()
+  })
+
+  it('a pending autosave does not bring the draft back after a 409', async () => {
+    saveDraft('u1', VALID)
+    const api = vi.fn(async () => { throw problem(409, { code: 'ORGANIZATION_ALREADY_EXISTS' }) }) as unknown as PluginHost['api']
+    // Opening the wizard schedules an autosave; the 409 arrives before it fires.
+    const { host } = renderWithHost(<RegistrationWizard />, { url: '/?step=summary', host: { api } })
+    click('Registar organização')
+    await waitFor(() => expect(host.reauthenticate).toHaveBeenCalledWith('/'))
+    await new Promise((resolve) => setTimeout(resolve, 500)) // past the autosave delay
+    expect(loadDraft('u1')).toBeNull()
   })
 
   it('shows the server message when registering is not possible right now', async () => {
