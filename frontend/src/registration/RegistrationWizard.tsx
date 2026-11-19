@@ -38,8 +38,15 @@ function describeFailure(error: unknown): Failure {
  * The step is in the URL (`?step=`); the half-filled form is kept in this browser to resume later.
  */
 export function RegistrationWizard() {
-  const { user, api, reauthenticate } = useHost()
-  const userId = user?.id ?? ''
+  const { user } = useHost()
+  // The draft is kept per account: without an id there is no key that is safe to read or write.
+  if (!user?.id) return null
+  // `key`: another account gets a fresh wizard, with its own draft, not the state of the previous one.
+  return <AccountRegistrationWizard key={user.id} userId={user.id} userName={user.name} />
+}
+
+function AccountRegistrationWizard({ userId, userName }: { userId: string; userName: string }) {
+  const { api, reauthenticate } = useHost()
   const [restored] = useState(() => loadDraft(userId))
   const [registeredBefore] = useState(() => registeredName(userId))
   const [form, setForm] = useState<OrganizationForm>(restored ?? EMPTY_ORGANIZATION)
@@ -171,7 +178,7 @@ export function RegistrationWizard() {
         </h2>
 
         {StepFields
-          ? <StepFields form={form} errors={errors} onChange={change} userName={user?.name ?? ''} />
+          ? <StepFields form={form} errors={errors} onChange={change} userName={userName} />
           : <Summary form={form} onEdit={goTo} />}
 
         {failure && 'message' in failure && (

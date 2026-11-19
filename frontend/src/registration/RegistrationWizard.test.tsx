@@ -181,4 +181,21 @@ describe('RegistrationWizard', () => {
     click('Registar organização')
     expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível concluir o registo.')
   })
+
+  it('reads and saves no draft until the account is known', () => {
+    vi.useFakeTimers()
+    try {
+      const getItem = vi.spyOn(Storage.prototype, 'getItem')
+      const setItem = vi.spyOn(Storage.prototype, 'setItem')
+      renderWithHost(<RegistrationWizard />, { host: { user: null } })
+      vi.advanceTimersByTime(1_000) // past the autosave delay
+      expect(screen.queryByRole('heading', { level: 2 })).not.toBeInTheDocument()
+      // Only the draft keys: the router keeps its own state in sessionStorage.
+      const draftKeys = (calls: unknown[][]) => calls.map(([key]) => String(key)).filter((key) => key.startsWith('alinha-registration'))
+      expect(draftKeys(getItem.mock.calls)).toEqual([])
+      expect(draftKeys(setItem.mock.calls)).toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
