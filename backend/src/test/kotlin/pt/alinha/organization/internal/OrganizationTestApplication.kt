@@ -1,5 +1,7 @@
 package pt.alinha.organization.internal
 
+import io.micrometer.core.instrument.MeterRegistry
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.springframework.boot.SpringBootConfiguration
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration
 import org.springframework.boot.persistence.autoconfigure.EntityScan
@@ -21,6 +23,7 @@ import pt.alinha.core.registry.PluginRegistry
 import pt.alinha.core.tenant.internal.HibernateTenantResolver
 import pt.alinha.core.tenant.internal.IdentityDirectory
 import pt.alinha.core.tenant.internal.JwtTenantContext
+import pt.alinha.core.tenant.internal.RegistrationRateLimiter
 import pt.alinha.core.tenant.internal.TenantProvisioner
 import pt.alinha.core.tenant.internal.TenantResolutionInterceptor
 import pt.alinha.core.tenant.internal.TenantWebConfig
@@ -57,12 +60,16 @@ class FakeIdentityDirectory : IdentityDirectory {
     SecurityConfig::class, AccessWebConfig::class, RequiresPermissionInterceptor::class,
     RolePermissionRegistry::class, PluginRegistry::class,
     TenantWebConfig::class, TenantResolutionInterceptor::class, JwtTenantContext::class,
-    HibernateTenantResolver::class, TenantProvisioner::class, AuditActor::class, JpaAuditTrail::class,
+    HibernateTenantResolver::class, TenantProvisioner::class, RegistrationRateLimiter::class, AuditActor::class, JpaAuditTrail::class,
     OrganizationPlugin::class, OrganizationService::class, OrganizationController::class, OrganizationProblems::class,
 )
 class OrganizationTestApplication {
     @Bean
     fun identityDirectory() = FakeIdentityDirectory()
+
+    /** The provisioner requires one (its orphan metric must be exported); the app gets it from Actuator. */
+    @Bean
+    fun meterRegistry(): MeterRegistry = SimpleMeterRegistry()
 
     @Bean
     @Primary

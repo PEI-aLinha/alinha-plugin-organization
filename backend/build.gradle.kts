@@ -26,5 +26,6 @@ dependencies {
     testImplementation(libs.spring.boot.starter.flyway)
     testImplementation(libs.testcontainers.junit.jupiter)
     testImplementation(libs.testcontainers.postgresql)
+    testImplementation(libs.micrometer.core) // the core's TenantProvisioner requires a MeterRegistry
     testRuntimeOnly(libs.flyway.postgresql)
 }
