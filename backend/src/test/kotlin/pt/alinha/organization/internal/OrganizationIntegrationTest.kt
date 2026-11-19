@@ -250,6 +250,36 @@ class OrganizationIntegrationTest {
     }
 
     @Test
+    fun `with two organizations registered, each reads and edits only its own profile`() {
+        val nifA = freshNif()
+        val tenantA = registered(nifA)
+        val subA = sub
+        sub = UUID.randomUUID().toString()
+        identity.assigned.clear()
+        val nifB = freshNif()
+        val tenantB = registered(nifB)
+
+        mvc.get(PROFILE) { header("Authorization", "Bearer responsible.$sub.$tenantB") }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.nif") { value(nifB) }
+            }
+        mvc.put(PROFILE) {
+            header("Authorization", "Bearer responsible.$sub.$tenantB")
+            contentType = MediaType.APPLICATION_JSON
+            content = body(nif = nifB, name = "Organização B, Lda.", version = 0)
+        }.andExpect { status { isOk() } }
+
+        mvc.get(PROFILE) { header("Authorization", "Bearer responsible.$subA.$tenantA") }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.nif") { value(nifA) }
+                jsonPath("$.name") { value("Componentes Águeda, Lda.") }
+                jsonPath("$.version") { value(0) }
+            }
+    }
+
+    @Test
     fun `before registering there is no profile to read or edit`() {
         val tenant = UUID.randomUUID()
         mvc.get(PROFILE) { header("Authorization", "Bearer responsible.$sub.$tenant") }
