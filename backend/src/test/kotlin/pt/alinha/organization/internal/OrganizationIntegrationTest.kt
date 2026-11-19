@@ -1,6 +1,7 @@
 package pt.alinha.organization.internal
 
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
@@ -10,6 +11,7 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.http.MediaType
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.orm.ObjectOptimisticLockingFailureException
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.context.event.ApplicationEvents
@@ -19,7 +21,14 @@ import org.springframework.test.web.servlet.ResultActionsDsl
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
 import org.springframework.test.web.servlet.put
+import org.springframework.transaction.support.TransactionTemplate
+import org.springframework.web.context.request.RequestContextHolder
+import pt.alinha.core.tenant.TenantContext
 import pt.alinha.organization.events.OrganizationRegistered
+import pt.alinha.organization.internal.domain.OrganizationProfileInput
+import pt.alinha.organization.internal.persistence.OrganizationProfileRepository
+import pt.alinha.pluginapi.TenantId
+import tools.jackson.databind.json.JsonMapper
 import java.util.UUID
 
 private const val REGISTRATION = "/api/organization/registration"
@@ -52,6 +61,11 @@ class OrganizationIntegrationTest {
     @Autowired private lateinit var jdbc: JdbcTemplate
     @Autowired private lateinit var identity: FakeIdentityDirectory
     @Autowired private lateinit var events: ApplicationEvents
+    @Autowired private lateinit var service: OrganizationService
+    @Autowired private lateinit var profiles: OrganizationProfileRepository
+    @Autowired private lateinit var tenants: TenantContext
+    @Autowired private lateinit var tx: TransactionTemplate
+    @Autowired private lateinit var json: JsonMapper
 
     private lateinit var sub: String
 
@@ -296,5 +310,36 @@ class OrganizationIntegrationTest {
                 Long::class.java, tenant,
             ),
         ).isZero()
+    }
+
+    @Test
+    fun `an update that loses a race with another update is a version conflict`() {
+        val tenant = registered()
+        val input = json.readValue(body(nif = currentNif(tenant), name = "Outro nome, Lda."), OrganizationProfileInput::class.java)
+
+        // Both requests read version 0. The other one commits first; this one passed the version check already, so
+        // only the @Version check on the UPDATE can stop it (the API maps this exception to 409 VERSION_CONFLICT).
+        // The test's mock request is bound to this thread; runAs refuses to run inside a request.
+        val request = RequestContextHolder.getRequestAttributes()
+        RequestContextHolder.resetRequestAttributes()
+        try {
+            assertThatThrownBy {
+                tenants.runAs(TenantId(UUID.fromString(tenant))) {
+                    tx.execute {
+                        profiles.findFirstBy() // the service reads the entity from this session, still at version 0
+                        jdbc.update(
+                            "update organization.organization_profile set version = version + 1 where tenant_id = ?::uuid",
+                            tenant,
+                        )
+                        service.update(input, 0)
+                    }
+                }
+            }.isInstanceOf(ObjectOptimisticLockingFailureException::class.java)
+        } finally {
+            RequestContextHolder.setRequestAttributes(request)
+        }
+        assertThat(
+            jdbc.queryForObject("select name from organization.organization_profile where tenant_id = ?::uuid", String::class.java, tenant),
+        ).isEqualTo("Componentes Águeda, Lda.")
     }
 }
