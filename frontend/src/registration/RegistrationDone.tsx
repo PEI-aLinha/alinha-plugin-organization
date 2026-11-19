@@ -8,7 +8,12 @@ import { Summary } from './Summary'
  * Without `form`, the user registered on an earlier visit and only needs to sign in again; `name` is null when
  * that visit ended with a 409 (the account already had an organization), which does not say which one.
  */
-export function RegistrationDone({ name, form }: { name: string | null; form?: OrganizationForm }) {
+export function RegistrationDone({ name, form, onRegisterAgain }: {
+  name: string | null
+  form?: OrganizationForm
+  /** On an earlier visit's mark: lets the person get back to the form if signing in again did not help. */
+  onRegisterAgain?: () => void
+}) {
   const { reauthenticate } = useHost()
   return (
     <div className="flex flex-col gap-6">
@@ -22,11 +27,16 @@ export function RegistrationDone({ name, form }: { name: string | null; form?: O
         </p>
       </header>
       {form && <Summary form={form} />}
-      <div>
+      <div className="flex flex-wrap items-center gap-3 max-sm:flex-col max-sm:items-stretch">
         {/* A new sign-in brings the token with the new organization (ADR 0004). */}
         <button type="button" className={`${buttonClass.primary} max-sm:w-full`} onClick={() => reauthenticate('/')}>
           Entrar na organização
         </button>
+        {onRegisterAgain && (
+          <button type="button" className={buttonClass.link} onClick={onRegisterAgain}>
+            Já entrei de novo e continuo sem organização
+          </button>
+        )}
       </div>
     </div>
   )

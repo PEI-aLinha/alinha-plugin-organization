@@ -112,6 +112,15 @@ export function markRegistered(userId: string, name?: string): void {
   }
 }
 
+/** Forgets the mark, e.g. when the sign-in it waits for showed the account still has no organization. */
+export function clearRegistered(userId: string): void {
+  try {
+    storage()?.removeItem(`${DONE_PREFIX}${userId}`)
+  } catch {
+    // Nothing to clear without storage.
+  }
+}
+
 /** The organization this account registered in this browser not long ago, or null. */
 export function registration(userId: string): Registered | null {
   try {

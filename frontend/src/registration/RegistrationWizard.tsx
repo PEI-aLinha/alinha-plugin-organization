@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router'
 import { useMutation } from '@tanstack/react-query'
 import { ApiError, useHost } from '@alinha/plugin-sdk'
-import { clearDraft, loadDraft, markRegistered, registration, saveDraft } from './draft'
+import { clearDraft, clearRegistered, loadDraft, markRegistered, registration, saveDraft } from './draft'
 import { buttonClass } from './fields'
 import {
   EMPTY_ORGANIZATION, STEPS, firstStepWithErrors, fromServerErrors, isStepId, stepIndex, toOrganizationInput,
@@ -16,6 +16,18 @@ import { Summary } from './Summary'
 const AUTOSAVE_DELAY_MS = 400
 const GENERIC_ERROR = 'Não foi possível concluir o registo. Verifique a ligação e tente novamente.'
 
+/**
+ * Codes the platform answers with a Portuguese `detail` meant for the user. Any other error (a 500, a gateway, a
+ * framework default) may carry technical or English text, so it gets the generic message instead.
+ */
+const CODES_WITH_USER_DETAIL: ReadonlySet<string> = new Set([
+  'VALIDATION_FAILED', 'TOO_MANY_REGISTRATIONS', 'REGISTRATION_BUSY', 'IDENTITY_UNAVAILABLE',
+])
+
+/** The server's `detail` when it is meant for the user and not empty, otherwise `fallback`. */
+const userDetail = (code: string | undefined, detail: string | undefined, fallback: string) =>
+  code && CODES_WITH_USER_DETAIL.has(code) && detail?.trim() ? detail : fallback
+
 /** What to do with a failed registration: errors on fields (and the step to show), or a message for the page. */
 type Failure = { fields: OrganizationErrors; step: StepId } | { message: string } | { reauthenticate: true }
 
@@ -23,13 +35,13 @@ function describeFailure(error: unknown): Failure {
   if (!(error instanceof ApiError)) return { message: GENERIC_ERROR }
   const { code, detail, errors } = error.problem ?? {}
   if (code === 'ORGANIZATION_ALREADY_EXISTS') return { reauthenticate: true }
-  if (code === 'NIF_ALREADY_REGISTERED') return { fields: { nif: detail ?? 'Já existe uma organização registada com este NIF.' }, step: 'company' }
+  if (code === 'NIF_ALREADY_REGISTERED') return { fields: { nif: detail?.trim() || 'Já existe uma organização registada com este NIF.' }, step: 'company' }
   if (code === 'VALIDATION_FAILED') {
     const fields = fromServerErrors(errors)
     const step = firstStepWithErrors(fields)
     if (step) return { fields, step }
   }
-  return { message: detail ?? GENERIC_ERROR }
+  return { message: userDetail(code, detail, GENERIC_ERROR) }
 }
 
 /**
@@ -48,7 +60,7 @@ export function RegistrationWizard() {
 function AccountRegistrationWizard({ userId, userName }: { userId: string; userName: string }) {
   const { api, reauthenticate } = useHost()
   const [restored] = useState(() => loadDraft(userId))
-  const [registeredBefore] = useState(() => registration(userId))
+  const [registeredBefore, setRegisteredBefore] = useState(() => registration(userId))
   const [form, setForm] = useState<OrganizationForm>(restored ?? EMPTY_ORGANIZATION)
   // Without `?step=`, start where the restored draft stopped (fixed once, so typing never moves the step).
   const [startStep] = useState<StepId>(() => (restored ? firstStepWithErrors(validateOrganization(restored)) ?? 'summary' : 'company'))
@@ -160,7 +172,9 @@ function AccountRegistrationWizard({ userId, userName }: { userId: string; userN
 
   if (registered) return <RegistrationDone name={registered.profile.name} form={registered.form} />
   // Registered earlier but never signed in again: the token is stale, so offer the sign-in, not an empty form.
-  if (registeredBefore) return <RegistrationDone name={registeredBefore.name} />
+  if (registeredBefore) {
+    return <RegistrationDone name={registeredBefore.name} onRegisterAgain={() => { clearRegistered(userId); setRegisteredBefore(null) }} />
+  }
 
   const index = stepIndex(step)
   const failure = register.isError ? describeFailure(register.error) : null

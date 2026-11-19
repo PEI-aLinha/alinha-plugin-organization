@@ -172,6 +172,14 @@ describe('RegistrationWizard', () => {
     expect(screen.queryByLabelText('Denominação')).not.toBeInTheDocument()
   })
 
+  it('lets the person back to the form when signing in again did not bring the organization', () => {
+    markRegistered('u1')
+    renderWithHost(<RegistrationWizard />)
+    click('Já entrei de novo e continuo sem organização')
+    expect(screen.getByLabelText('Denominação')).toBeInTheDocument()
+    expect(registration('u1')).toBeNull()
+  })
+
   it('a pending autosave does not bring the draft back after a 409', async () => {
     saveDraft('u1', VALID)
     const api = vi.fn(async () => { throw problem(409, { code: 'ORGANIZATION_ALREADY_EXISTS' }) }) as unknown as PluginHost['api']
@@ -191,6 +199,18 @@ describe('RegistrationWizard', () => {
     renderWithHost(<RegistrationWizard />, { url: '/?step=summary', host: { api } })
     click('Registar organização')
     expect(await screen.findByRole('alert')).toHaveTextContent('Foram feitas demasiadas tentativas de registo.')
+  })
+
+  it('shows the plain message, not the server text, for an unexpected server error', async () => {
+    saveDraft('u1', VALID)
+    const api = vi.fn(async () => {
+      throw problem(500, { detail: 'could not execute statement [ERROR: relation "x" does not exist]' })
+    }) as unknown as PluginHost['api']
+    renderWithHost(<RegistrationWizard />, { url: '/?step=summary', host: { api } })
+    click('Registar organização')
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Não foi possível concluir o registo.')
+    expect(alert).not.toHaveTextContent('relation')
   })
 
   it('shows a plain message on a network failure', async () => {
