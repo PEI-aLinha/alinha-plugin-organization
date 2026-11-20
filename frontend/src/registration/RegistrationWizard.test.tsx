@@ -3,15 +3,23 @@ import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { ApiError, type PluginHost } from '@alinha/plugin-sdk'
 import { loadDraft, markRegistered, registration, saveDraft } from './draft'
 import { EMPTY_ORGANIZATION } from './organizationForm'
+import { sectorById } from './sectors'
 import { RegistrationWizard } from './RegistrationWizard'
 import { VALID } from '../test/fixtures'
 import { renderWithHost } from '../test/renderWithHost'
 
 const type = (label: string | RegExp, value: string) =>
   fireEvent.change(screen.getByLabelText(label), { target: { value } })
-const choose = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } })
+/** Picks an option of a `@alinha/ui` Select (Radix): open it from the keyboard, then click the option. */
+const choose = (label: string, option: string) => {
+  fireEvent.keyDown(screen.getByLabelText(label), { key: 'Enter' })
+  fireEvent.click(screen.getByRole('option', { name: option }))
+}
 const click = (name: string | RegExp) => fireEvent.click(screen.getByRole('button', { name }))
 const stepTitle = () => screen.getByRole('heading', { level: 2 })
+
+const SECTOR_LABEL = sectorById('industria')!.label
+const SUBSECTOR_LABEL = sectorById('industria')!.subsectors.find((s) => s.id === 'automoveis')!.label
 
 const PROFILE = { id: 'org-1', version: 0, name: 'Componentes Águeda, Lda.' }
 const problem = (status: number, body: object) => new ApiError(status, '/organization/registration', undefined, body)
@@ -42,8 +50,8 @@ describe('RegistrationWizard', () => {
     click('Continuar')
     await waitFor(() => expect(stepTitle()).toHaveTextContent('Atividade'))
     expect(router.state.location.search).toBe('?step=activity')
-    choose('Setor', 'industria')
-    choose('Subsetor', 'automoveis')
+    choose('Setor', SECTOR_LABEL)
+    choose('Subsetor', SUBSECTOR_LABEL)
     type('Serviços prestados', VALID.services)
     click('Continuar')
     await waitFor(() => expect(stepTitle()).toHaveTextContent('Dimensão'))

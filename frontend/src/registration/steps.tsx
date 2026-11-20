@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react'
-import { Field, Section, Select, TextArea, TextInput, buttonClass, twoColumns } from './fields'
+import type { ComponentProps, ReactNode } from 'react'
+import { Button, Field, Select, TextArea, TextInput } from '@alinha/ui'
+import { Section, twoColumns } from './Section'
 import type { FieldKey, OrganizationErrors, OrganizationForm, StepId } from './organizationForm'
 import { SECTORS, sectorById } from './sectors'
 
@@ -11,7 +12,7 @@ export interface StepProps {
   userName: string
 }
 
-type InputExtras = Omit<Parameters<typeof TextInput>[0], 'value' | 'onChange' | 'id' | 'name' | 'step'>
+type InputExtras = Omit<ComponentProps<typeof TextInput>, 'value' | 'onChange' | 'id' | 'name' | 'step' | 'invalid'>
 
 interface TextFieldProps extends InputExtras {
   step: StepProps
@@ -24,7 +25,10 @@ interface TextFieldProps extends InputExtras {
 function TextField({ step: { form, errors, onChange }, name, label, hint, ...extra }: TextFieldProps) {
   return (
     <Field label={label} hint={hint} error={errors[name]}>
-      {(p) => <TextInput {...p} name={name} aria-required value={form[name]} onChange={(e) => onChange({ [name]: e.target.value })} {...extra} />}
+      {(p) => (
+        <TextInput id={p.id} aria-describedby={p.describedBy} aria-required={p.required} invalid={p.invalid}
+          name={name} value={form[name]} onChange={(e) => onChange({ [name]: e.target.value })} {...extra} />
+      )}
     </Field>
   )
 }
@@ -49,23 +53,26 @@ function ActivityStep({ form, errors, onChange }: StepProps) {
       <div className={twoColumns}>
         <Field label="Setor" error={errors.sector}>
           {(p) => (
-            <Select {...p} name="sector" aria-required value={form.sector} placeholder="Escolher o setor…"
-              onChange={(e) => onChange({ sector: e.target.value, subsector: '' })}
+            <Select id={p.id} describedBy={p.describedBy} required={p.required} invalid={p.invalid}
+              name="sector" value={form.sector} placeholder="Escolher o setor…"
+              onChange={(sectorId) => onChange({ sector: sectorId, subsector: '' })}
               options={SECTORS.map((s) => ({ value: s.id, label: s.label }))} />
           )}
         </Field>
         <Field label="Subsetor" hint={sector && !hasSubsectors ? 'Este setor não tem subsetores.' : undefined} error={errors.subsector}>
           {(p) => (
-            <Select {...p} name="subsector" aria-required={hasSubsectors} disabled={!hasSubsectors} value={form.subsector}
+            <Select id={p.id} describedBy={p.describedBy} required={hasSubsectors} invalid={p.invalid}
+              name="subsector" disabled={!hasSubsectors} value={form.subsector}
               placeholder={sector ? (hasSubsectors ? 'Escolher o subsetor…' : 'Não se aplica') : 'Escolha primeiro o setor'}
-              onChange={(e) => onChange({ subsector: e.target.value })}
+              onChange={(subsectorId) => onChange({ subsector: subsectorId })}
               options={(sector?.subsectors ?? []).map((s) => ({ value: s.id, label: s.label }))} />
           )}
         </Field>
       </div>
       <Field label="Serviços prestados" hint="O que a empresa faz ou vende, e a quem." error={errors.services}>
         {(p) => (
-          <TextArea {...p} name="services" aria-required value={form.services} onChange={(e) => onChange({ services: e.target.value })}
+          <TextArea id={p.id} aria-describedby={p.describedBy} aria-required={p.required} invalid={p.invalid} rows={4}
+            name="services" value={form.services} onChange={(e) => onChange({ services: e.target.value })}
             placeholder="Ex.: Fabrico de componentes para a indústria automóvel." />
         )}
       </Field>
@@ -107,9 +114,9 @@ function ContactsStep(props: StepProps) {
           <TextField step={props} name="contactPhone" label="Telefone disponível a qualquer hora" type="tel" />
         </div>
         {userName && (
-          <button type="button" className={`${buttonClass.link} w-fit`} onClick={() => onChange({ contactName: userName })}>
+          <Button variant="link" className="w-fit" onClick={() => onChange({ contactName: userName })}>
             Sou eu ({userName})
-          </button>
+          </Button>
         )}
       </Section>
     </div>
