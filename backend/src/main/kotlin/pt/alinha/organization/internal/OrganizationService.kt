@@ -64,13 +64,14 @@ class OrganizationService(
      */
     @Transactional
     fun update(input: OrganizationProfileInput, version: Long?): OrganizationProfileView {
+        // Looked up first: with no organization there is nothing to correct, whatever the data.
+        val entity = profiles.findFirstBy() ?: throw OrganizationNotRegisteredException()
         val missingVersion = if (version == null) {
             listOf(FieldError("version", "Recarregue a página e volte a fazer as alterações."))
         } else {
             emptyList()
         }
         val profile = validated(input, missingVersion)
-        val entity = profiles.findFirstBy() ?: throw OrganizationNotRegisteredException()
         if (version != entity.version) throw StaleVersionException()
         // The NIF identifies the company: it is fixed at registration (product decision, organization#2).
         if (profile.nif != entity.nif) {

@@ -302,6 +302,18 @@ class OrganizationIntegrationTest {
     }
 
     @Test
+    fun `before registering, invalid data is still a 404, not a 422`() {
+        mvc.put(PROFILE) {
+            header("Authorization", "Bearer responsible.$sub.${UUID.randomUUID()}")
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"name": "", "nif": "509180028"}"""
+        }.andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("ORGANIZATION_NOT_REGISTERED") }
+        }
+    }
+
+    @Test
     fun `a missing version is invalid data, not a conflict`() {
         val tenant = registered()
 
