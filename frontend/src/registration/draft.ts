@@ -6,7 +6,12 @@ import { EMPTY_ORGANIZATION, type FieldKey, type OrganizationForm } from './orga
  * in memory and every function here quietly does nothing.
  *
  * The draft holds company and contact data in clear text, so it expires: a draft older than DRAFT_TTL_MS is
- * ignored and removed the next time it is read, so an abandoned wizard does not leave it in the browser for good.
+ * ignored and removed the next time it is read, and `forgetExpired` removes every account's expired drafts when
+ * the wizard opens, so an abandoned wizard does not leave it in the browser for good.
+ *
+ * Trade-off: localStorage, not sessionStorage, because resuming in a later session is the point of the draft.
+ * Until it expires, anyone with access to this browser profile can read it with the developer tools. Clearing it
+ * on sign-out needs a hook from the shell, which has none yet (follow-up issue).
  */
 const KEY_PREFIX = 'alinha-registration-draft:'
 const VERSION = 2
@@ -130,5 +135,23 @@ export function registration(userId: string): Registered | null {
     return { name: typeof name === 'string' && name.trim() ? name : null }
   } catch {
     return null
+  }
+}
+
+/**
+ * Removes the drafts and marks of every account in this browser that expired or can no longer be read, not only the
+ * current account's: another person's abandoned draft would otherwise stay until they come back.
+ */
+export function forgetExpired(): void {
+  try {
+    const s = storage()
+    if (!s) return
+    const keys = Array.from({ length: s.length }, (_, i) => s.key(i)).filter((k): k is string => k !== null)
+    for (const key of keys) {
+      if (key.startsWith(KEY_PREFIX)) readFresh(key, DRAFT_TTL_MS)
+      else if (key.startsWith(DONE_PREFIX)) readFresh(key, DONE_TTL_MS)
+    }
+  } catch {
+    // Nothing to sweep without storage.
   }
 }

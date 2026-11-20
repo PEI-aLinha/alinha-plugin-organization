@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router'
 import { useMutation } from '@tanstack/react-query'
 import { ApiError, useHost } from '@alinha/plugin-sdk'
-import { clearDraft, clearRegistered, loadDraft, markRegistered, registration, saveDraft } from './draft'
+import { clearDraft, clearRegistered, forgetExpired, loadDraft, markRegistered, registration, saveDraft } from './draft'
 import { buttonClass } from './fields'
 import {
   EMPTY_ORGANIZATION, STEPS, firstStepWithErrors, fromServerErrors, isStepId, stepIndex, toOrganizationInput,
@@ -88,6 +88,9 @@ function AccountRegistrationWizard({ userId, userName }: { userId: string; userN
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       }),
   })
+
+  // Expired drafts of any account in this browser go when the wizard opens, not only when their owner returns.
+  useEffect(() => forgetExpired(), [])
 
   // Saves the draft shortly after each change, until the organization is registered.
   useEffect(() => {

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { DONE_TTL_MS, DRAFT_TTL_MS, clearDraft, isEmptyForm, loadDraft, markRegistered, registration, saveDraft } from './draft'
+import { DONE_TTL_MS, DRAFT_TTL_MS, clearDraft, forgetExpired, isEmptyForm, loadDraft, markRegistered, registration, saveDraft } from './draft'
 import { EMPTY_ORGANIZATION } from './organizationForm'
 import { VALID } from '../test/fixtures'
 
@@ -76,6 +76,26 @@ describe('registration draft', () => {
     }
   })
 
+  it('forgets the expired drafts and marks of every account, and keeps the rest', () => {
+    vi.useFakeTimers()
+    saveDraft('old', VALID)
+    markRegistered('old', 'Acme, Lda.')
+    vi.advanceTimersByTime(DRAFT_TTL_MS)
+    saveDraft('recent', VALID)
+    markRegistered('recent')
+    localStorage.setItem('alinha-registration-draft:broken', '{')
+    localStorage.setItem('unrelated', 'kept')
+
+    forgetExpired()
+
+    expect(localStorage.getItem('alinha-registration-draft:old')).toBeNull()
+    expect(localStorage.getItem('alinha-registration-done:old')).toBeNull()
+    expect(localStorage.getItem('alinha-registration-draft:broken')).toBeNull()
+    expect(loadDraft('recent')).toEqual(VALID)
+    expect(registration('recent')).toEqual({ name: null })
+    expect(localStorage.getItem('unrelated')).toBe('kept')
+  })
+
   it('clears the draft', () => {
     saveDraft('u1', VALID)
     clearDraft('u1')
@@ -110,5 +130,6 @@ describe('registration draft', () => {
     expect(saveDraft('u1', VALID)).toBe(false)
     expect(loadDraft('u1')).toBeNull()
     expect(() => clearDraft('u1')).not.toThrow()
+    expect(() => forgetExpired()).not.toThrow()
   })
 })
