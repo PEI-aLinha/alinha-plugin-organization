@@ -20,10 +20,12 @@ import pt.alinha.core.access.internal.SecurityConfig
 import pt.alinha.core.audit.internal.AuditActor
 import pt.alinha.core.audit.internal.JpaAuditTrail
 import pt.alinha.core.registry.PluginRegistry
+import pt.alinha.core.tenant.internal.CorrelationIdFilter
 import pt.alinha.core.tenant.internal.HibernateTenantResolver
 import pt.alinha.core.tenant.internal.IdentityDirectory
 import pt.alinha.core.tenant.internal.JwtTenantContext
 import pt.alinha.core.tenant.internal.RegistrationRateLimiter
+import pt.alinha.core.tenant.internal.ScopedCorrelationContext
 import pt.alinha.core.tenant.internal.TenantProvisioner
 import pt.alinha.core.tenant.internal.TenantResolutionInterceptor
 import pt.alinha.core.tenant.internal.TenantWebConfig
@@ -60,7 +62,7 @@ class FakeIdentityDirectory : IdentityDirectory {
     SecurityConfig::class, AccessWebConfig::class, RequiresPermissionInterceptor::class,
     RolePermissionRegistry::class, PluginRegistry::class,
     TenantWebConfig::class, TenantResolutionInterceptor::class, JwtTenantContext::class,
-    HibernateTenantResolver::class, TenantProvisioner::class, RegistrationRateLimiter::class, AuditActor::class, JpaAuditTrail::class,
+    HibernateTenantResolver::class, CorrelationIdFilter::class, ScopedCorrelationContext::class, TenantProvisioner::class, RegistrationRateLimiter::class, AuditActor::class, JpaAuditTrail::class,
     OrganizationPlugin::class, OrganizationService::class, OrganizationController::class, OrganizationProblems::class,
 )
 class OrganizationTestApplication {

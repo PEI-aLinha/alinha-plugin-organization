@@ -84,9 +84,14 @@ class OrganizationIntegrationTest {
         return base + (if (rest < 2) 0 else 11 - rest)
     }
 
-    private fun register(token: String = "registrant.$sub", nif: String = freshNif()): ResultActionsDsl =
+    private fun register(
+        token: String = "registrant.$sub",
+        nif: String = freshNif(),
+        correlationId: UUID = UUID.randomUUID(),
+    ): ResultActionsDsl =
         mvc.post(REGISTRATION) {
             header("Authorization", "Bearer $token")
+            header("X-Correlation-Id", correlationId.toString())
             contentType = MediaType.APPLICATION_JSON
             content = body(nif)
         }
@@ -99,7 +104,8 @@ class OrganizationIntegrationTest {
 
     @Test
     fun `a registrant registers the organization and gets its own tenant`() {
-        register().andExpect {
+        val correlationId = UUID.randomUUID()
+        register(correlationId = correlationId).andExpect {
             status { isCreated() }
             jsonPath("$.name") { value("Componentes Águeda, Lda.") }
             jsonPath("$.sectorAnnex") { value("II") }
@@ -115,7 +121,11 @@ class OrganizationIntegrationTest {
         assertThat(audit).containsExactly("organization.registered" to sub, "tenant.provisioned" to sub)
         assertThat(events.stream(OrganizationRegistered::class.java))
             .singleElement()
-            .satisfies({ assertThat(it.tenantId).isEqualTo(tenant); assertThat(it.organizationId).isEqualTo(row["id"]) })
+            .satisfies({
+                assertThat(it.tenantId).isEqualTo(tenant)
+                assertThat(it.correlationId).isEqualTo(correlationId)
+                assertThat(it.organizationId).isEqualTo(row["id"])
+            })
     }
 
     @Test

@@ -6,6 +6,7 @@ import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import pt.alinha.core.audit.AuditTrail
+import pt.alinha.core.tenant.CorrelationContext
 import pt.alinha.core.tenant.TenantProvisioning
 import pt.alinha.organization.api.AddressView
 import pt.alinha.organization.api.ContactsView
@@ -33,6 +34,7 @@ class OrganizationService(
     private val provisioning: TenantProvisioning,
     private val audit: AuditTrail,
     private val events: ApplicationEventPublisher,
+    private val correlation: CorrelationContext,
 ) : OrganizationApi {
 
     /**
@@ -48,7 +50,7 @@ class OrganizationService(
                 "organization.registered", ENTITY_TYPE, entity.id.toString(),
                 mapOf("sector" to profile.sector, "subsector" to profile.subsector),
             )
-            events.publishEvent(OrganizationRegistered(tenantId, entity.id, now))
+            events.publishEvent(OrganizationRegistered(tenantId, correlation.current(), entity.id, now))
             entity.toView()
         }
     }
