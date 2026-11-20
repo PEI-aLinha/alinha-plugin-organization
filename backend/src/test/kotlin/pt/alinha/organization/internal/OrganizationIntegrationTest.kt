@@ -143,6 +143,59 @@ class OrganizationIntegrationTest {
         assertThat(jdbc.queryForObject("select count(*) from core.tenant where owner_subject = ?", Long::class.java, sub)).isZero()
     }
 
+    @ParameterizedTest(name = "{0} is a 422 on {1} and creates nothing")
+    @CsvSource(
+        delimiter = '|',
+        value = [
+            "\"employees\": \"abc\"   | employees",
+            "\"turnover\": 1e30         | turnover",
+            "\"address\": \"Águeda\"  | address",
+        ],
+    )
+    fun `a value of the wrong type is invalid data`(field: String, name: String) {
+        mvc.post(REGISTRATION) {
+            header("Authorization", "Bearer registrant.$sub")
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"name": "Componentes Águeda, Lda.", $field}"""
+        }.andExpect {
+            status { isUnprocessableContent() }
+            jsonPath("$.code") { value("VALIDATION_FAILED") }
+            jsonPath("$.errors[0].field") { value(name) }
+            jsonPath("$.errors[0].message") { value("Este valor não é válido.") }
+        }
+        assertThat(identity.assigned).isEmpty()
+    }
+
+    @ParameterizedTest(name = "body [{0}] is a 422")
+    @CsvSource("''", "'{\"name\": '", "'[]'")
+    fun `a body that cannot be read is invalid data`(content: String) {
+        mvc.post(REGISTRATION) {
+            header("Authorization", "Bearer registrant.$sub")
+            contentType = MediaType.APPLICATION_JSON
+            this.content = content
+        }.andExpect {
+            status { isUnprocessableContent() }
+            jsonPath("$.code") { value("VALIDATION_FAILED") }
+            jsonPath("$.errors") { isEmpty() }
+        }
+        assertThat(identity.assigned).isEmpty()
+    }
+
+    @Test
+    fun `an update with a value of the wrong type is invalid data`() {
+        val tenant = registered()
+
+        mvc.put(PROFILE) {
+            header("Authorization", "Bearer responsible.$sub.$tenant")
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"version": 0, "address": {"postalCode": 3750}, "employees": "muitos"}"""
+        }.andExpect {
+            status { isUnprocessableContent() }
+            jsonPath("$.code") { value("VALIDATION_FAILED") }
+            jsonPath("$.errors[0].field") { value("employees") }
+        }
+    }
+
     @Test
     fun `a second registration by the same account is a 409`() {
         registered()

@@ -3,6 +3,7 @@ package pt.alinha.organization.internal.web
 import org.springframework.http.HttpStatus
 import org.springframework.http.ProblemDetail
 import org.springframework.http.ResponseEntity
+import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.orm.ObjectOptimisticLockingFailureException
 import org.springframework.web.ErrorResponseException
 import org.springframework.web.bind.annotation.ExceptionHandler
@@ -11,6 +12,7 @@ import pt.alinha.organization.internal.InvalidOrganizationException
 import pt.alinha.organization.internal.NifAlreadyRegisteredException
 import pt.alinha.organization.internal.OrganizationNotRegisteredException
 import pt.alinha.organization.internal.StaleVersionException
+import tools.jackson.core.JacksonException
 
 private val CORE_MESSAGES = mapOf(
     "ORGANIZATION_ALREADY_EXISTS" to "Esta conta já tem uma organização registada. Entre de novo para continuar.",
@@ -28,6 +30,19 @@ class OrganizationProblems {
         problem(HttpStatus.UNPROCESSABLE_CONTENT, "VALIDATION_FAILED", "Há dados por corrigir.").apply {
             setProperty("errors", e.errors.map { mapOf("field" to it.field, "message" to it.message) })
         }
+
+    /**
+     * A body Jackson cannot read: a value of the wrong type (`"employees": "abc"`), a number out of range, malformed
+     * JSON or no body. Same answer as the validator's, naming the field when Jackson knows it.
+     */
+    @ExceptionHandler
+    fun unreadable(e: HttpMessageNotReadableException): ProblemDetail {
+        val field = unreadableField(e)
+        val detail = if (field == null) UNREADABLE_BODY else "Há dados por corrigir."
+        return problem(HttpStatus.UNPROCESSABLE_CONTENT, "VALIDATION_FAILED", detail).apply {
+            setProperty("errors", listOfNotNull(field?.let { mapOf("field" to it, "message" to INVALID_VALUE) }))
+        }
+    }
 
     @ExceptionHandler
     fun nifTaken(e: NifAlreadyRegisteredException) =
@@ -58,3 +73,13 @@ class OrganizationProblems {
     private fun problem(status: HttpStatus, code: String, detail: String) =
         ProblemDetail.forStatusAndDetail(status, detail).apply { setProperty("code", code) }
 }
+
+private const val INVALID_VALUE = "Este valor não é válido."
+private const val UNREADABLE_BODY = "Não foi possível ler os dados enviados. Recarregue a página e tente de novo."
+private const val MAX_CAUSE_DEPTH = 20
+
+/** The body's field Jackson failed on, in the validator's notation (`address.postalCode`), or null if unknown. */
+internal fun unreadableField(e: Throwable): String? =
+    generateSequence(e) { it.cause }.take(MAX_CAUSE_DEPTH)
+        .filterIsInstance<JacksonException>().firstOrNull()
+        ?.path?.mapNotNull { it.propertyName }?.joinToString(".")?.ifEmpty { null }
