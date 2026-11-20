@@ -133,9 +133,17 @@ describe('RegistrationWizard', () => {
   it('tells screen readers which steps are done', () => {
     saveDraft('u1', VALID)
     renderWithHost(<RegistrationWizard />, { url: '/?step=size' })
-    const steps = screen.getByRole('list', { name: 'Passos do registo' })
-    expect(steps.querySelectorAll('li')[0]).toHaveTextContent('Concluído')
+    const steps = screen.getByRole('navigation', { name: 'Passos do registo' })
+    expect(steps.querySelectorAll('li')[0]).toHaveTextContent('concluído')
     expect(steps.querySelector('[aria-current="step"]')).toHaveTextContent('Dimensão')
+  })
+
+  it('goes back to a done step from the stepper', async () => {
+    saveDraft('u1', VALID)
+    const { router } = renderWithHost(<RegistrationWizard />, { url: '/?step=size' })
+    click(/Empresa/)
+    await waitFor(() => expect(stepTitle()).toHaveTextContent('Empresa'))
+    expect(router.state.location.search).toBe('?step=company')
   })
 
   it('shows the server field errors on their step', async () => {

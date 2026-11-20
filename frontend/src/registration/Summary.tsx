@@ -1,4 +1,4 @@
-import { buttonClass } from './fields'
+import { Button, Card } from '@alinha/ui'
 import { digits, type OrganizationForm, type StepId } from './organizationForm'
 import { sectorById } from './sectors'
 
@@ -34,27 +34,27 @@ export function Summary({ form, onEdit }: SummaryProps) {
     },
   ]
   return (
-    <div className="flex flex-col divide-y rounded-lg border">
+    <Card className="flex flex-col divide-y divide-line-soft !p-0">
       {groups.map((g) => (
         <section key={g.step} aria-labelledby={`resumo-${g.step}`} className="flex flex-col gap-3 p-5">
           <div className="flex items-baseline justify-between gap-4">
-            <h3 id={`resumo-${g.step}`} className="text-base font-bold">{g.title}</h3>
+            <h3 id={`resumo-${g.step}`} className="text-base font-bold text-ink">{g.title}</h3>
             {onEdit && (
-              <button type="button" className={buttonClass.link} onClick={() => onEdit(g.step)}>
+              <Button variant="link" size="sm" onClick={() => onEdit(g.step)}>
                 Alterar<span className="sr-only"> {g.title.toLowerCase()}</span>
-              </button>
+              </Button>
             )}
           </div>
           <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-[180px_1fr]">
             {g.rows.map(([label, value]) => (
               <div key={label} className="contents">
-                <dt className="text-sm text-gray-600">{label}</dt>
-                <dd className="whitespace-pre-line break-words text-sm font-semibold text-gray-900 max-sm:-mt-1">{value}</dd>
+                <dt className="text-sm text-ink-soft">{label}</dt>
+                <dd className="whitespace-pre-line break-words text-sm font-semibold text-ink max-sm:-mt-1">{value}</dd>
               </div>
             ))}
           </dl>
         </section>
       ))}
-    </div>
+    </Card>
   )
 }

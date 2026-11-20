@@ -2,15 +2,14 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router'
 import { useMutation } from '@tanstack/react-query'
 import { ApiError, useHost } from '@alinha/plugin-sdk'
+import { Button, Note, PageHeader, Stepper } from '@alinha/ui'
 import { clearDraft, clearRegistered, forgetExpired, loadDraft, markRegistered, registration, saveDraft } from './draft'
-import { buttonClass } from './fields'
 import {
   EMPTY_ORGANIZATION, STEPS, firstStepWithErrors, fromServerErrors, isStepId, stepIndex, toOrganizationInput,
   validateOrganization, validateStep, type OrganizationErrors, type OrganizationForm, type OrganizationProfile, type StepId,
 } from './organizationForm'
 import { RegistrationDone } from './RegistrationDone'
 import { STEP_FIELDS } from './steps'
-import { Stepper } from './Stepper'
 import { Summary } from './Summary'
 
 const AUTOSAVE_DELAY_MS = 400
@@ -185,20 +184,21 @@ function AccountRegistrationWizard({ userId, userName }: { userId: string; userN
 
   return (
     <div className="flex flex-col gap-8">
-      <header className="flex flex-col gap-2">
-        <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">Registe a sua organização</h1>
-        <p className="text-base text-gray-700">Com estes dados indicamos que leis se aplicam à empresa. Encontra a maioria na certidão permanente.</p>
-      </header>
+      <PageHeader
+        title="Registe a sua organização"
+        subtitle="Com estes dados indicamos que leis se aplicam à empresa. Encontra a maioria na certidão permanente."
+      />
 
-      <Stepper steps={STEPS} current={step} />
+      {/* Done steps are buttons back to them; steps ahead stay closed until the ones before are complete. */}
+      <Stepper steps={[...STEPS]} current={index} label="Passos do registo" onStepClick={(i) => goTo(STEPS[i].id)} />
 
       {restored && !notice && (
-        <p className="rounded-md bg-gray-100 px-4 py-3 text-sm text-gray-800">Retomámos o registo que deixou a meio. Confirme os dados e continue quando quiser.</p>
+        <Note>Retomámos o registo que deixou a meio. Confirme os dados e continue quando quiser.</Note>
       )}
 
       <form ref={formRef} noValidate onSubmit={next} aria-labelledby="passo-titulo" className="flex flex-col gap-6">
-        <h2 id="passo-titulo" ref={headingRef} tabIndex={-1} className="text-xl font-bold text-gray-900 outline-none">
-          <span className="block text-sm font-semibold text-gray-600">Passo {index + 1} de {STEPS.length}</span>
+        <h2 id="passo-titulo" ref={headingRef} tabIndex={-1} className="text-xl font-bold text-ink outline-none">
+          <span className="block text-sm font-semibold text-ink-soft">Passo {index + 1} de {STEPS.length}</span>
           {step === 'summary' ? 'Confirme os dados' : STEPS[index].label}
         </h2>
 
@@ -207,22 +207,22 @@ function AccountRegistrationWizard({ userId, userName }: { userId: string; userN
           : <Summary form={form} onEdit={goTo} />}
 
         {failure && 'message' in failure && (
-          <p role="alert" className="rounded-md bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">{failure.message}</p>
+          <p role="alert" className="rounded-[10px] border border-danger px-3.5 py-2.5 text-sm font-semibold text-danger">{failure.message}</p>
         )}
-        <p role="status" className="text-sm text-gray-700 empty:hidden">{notice}</p>
+        <p role="status" className="text-sm text-ink-soft empty:hidden">{notice}</p>
 
         <div className="flex flex-wrap items-center gap-3 max-sm:flex-col-reverse max-sm:items-stretch">
           {index > 0 && (
-            <button type="button" className={buttonClass.secondary} onClick={() => goTo(STEPS[index - 1].id)} disabled={register.isPending}>
+            <Button variant="secondary" onClick={() => goTo(STEPS[index - 1].id)} disabled={register.isPending}>
               Voltar
-            </button>
+            </Button>
           )}
-          <button type="submit" className={buttonClass.primary} disabled={register.isPending}>
+          <Button type="submit" loading={register.isPending}>
             {step === 'summary' ? (register.isPending ? 'A registar…' : 'Registar organização') : 'Continuar'}
-          </button>
-          <button type="button" className={`${buttonClass.link} sm:ml-auto`} onClick={saveForLater} disabled={register.isPending}>
+          </Button>
+          <Button variant="link" className="sm:ml-auto" onClick={saveForLater} disabled={register.isPending}>
             Guardar e continuar mais tarde
-          </button>
+          </Button>
         </div>
       </form>
     </div>
