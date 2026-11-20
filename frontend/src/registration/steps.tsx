@@ -49,7 +49,7 @@ function ActivityStep({ form, errors, onChange }: StepProps) {
   const sector = sectorById(form.sector)
   const hasSubsectors = !!sector && sector.subsectors.length > 0
   return (
-    <Section title="Atividade" description="Com o setor indicamos se a empresa está abrangida pela lei da cibersegurança (NIS2).">
+    <Section title="Atividade" description="O setor ajuda a perceber que regras de cibersegurança (NIS2) se podem aplicar à empresa.">
       <div className={twoColumns}>
         <Field label="Setor" error={errors.sector}>
           {(p) => (
