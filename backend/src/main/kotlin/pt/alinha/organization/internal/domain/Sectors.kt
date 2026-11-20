@@ -7,7 +7,11 @@ data class Sector(val id: String, val label: String, val annex: Annex?, val subs
 
 /**
  * Sectors and subsectors of the Regime Jurídico da Cibersegurança (DL 125/2025, NIS2), with the same ids as the
- * registration wizard (frontend prototype `sectors.ts`). The annex feeds the NIS2 classification (organization#4).
+ * registration wizard (frontend prototype `sectors.ts`).
+ *
+ * The annex alone does not decide the NIS2 classification (organization#4): within a sector the rule depends on the
+ * entity type (e.g. in `infra_digitais`, DNS and TLD are essential at any size, telecoms are covered even when small,
+ * cloud depends on size). The user picks the entity types (`Nis2EntityType` in the core Compliance Engine).
  */
 object Sectors {
     val all: List<Sector> = listOf(
