@@ -1,4 +1,5 @@
 import { definePlugin } from '@alinha/plugin-sdk'
+import { Building2 } from 'lucide-react'
 import { OrganizationPage } from './pages/OrganizationPage'
 
 /**
@@ -18,6 +19,6 @@ export default definePlugin({
     ],
   },
   nav: [
-    { label: 'Organização', path: 'organization', area: 'client' },
+    { label: 'Organização', path: 'organization', area: 'client', icon: Building2, order: 20 },
   ],
 })
