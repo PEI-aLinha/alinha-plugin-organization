@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { Building2 } from 'lucide-react'
 import type { ApiResponse } from '@alinha/api-client'
-import { ApiError, useHost } from '@alinha/plugin-sdk'
+import { ApiError, formatNumber, useApiQuery } from '@alinha/plugin-sdk'
 import { Card, EmptyState, ErrorState, PageHeader, SkeletonRows } from '@alinha/ui'
 import { sectorLabel } from '../registration/sectors'
 
@@ -11,11 +10,7 @@ type OrganizationProfile = NonNullable<ApiResponse<'/api/organization/profile'>>
 const TITLE = 'Organização'
 
 export function OrganizationPage() {
-  const { api } = useHost()
-  const profile = useQuery({
-    queryKey: ['organization', 'profile'],
-    queryFn: ({ signal }) => api<OrganizationProfile>('/organization/profile', { signal }),
-  })
+  const profile = useApiQuery<OrganizationProfile>(['organization', 'profile'], '/organization/profile')
 
   if (profile.isPending) {
     return (
@@ -58,7 +53,7 @@ function ProfileCard({ profile }: { profile: OrganizationProfile }) {
         <Field label="NIF">{profile.nif}</Field>
         <Field label="CAE">{profile.cae}</Field>
         <Field label="Setor">{sectorLabel(profile.sector, profile.subsector)}</Field>
-        <Field label="Nº de trabalhadores">{profile.employees.toLocaleString('pt-PT')}</Field>
+        <Field label="Nº de trabalhadores">{formatNumber(profile.employees)}</Field>
         <Field label="Morada">
           {address.street}
           <br />
