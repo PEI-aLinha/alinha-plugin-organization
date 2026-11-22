@@ -19,4 +19,6 @@ jobs:
       plugin-path: plugins/feature/organization
       gradle-project: organization
       npm-package: "@alinha/plugin-organization"
-    secrets: inherit   # ALINHA_READ_TOKEN (private repos only), SONAR_TOKEN
+    secrets:
+      ALINHA_READ_TOKEN: ${{ secrets.ALINHA_READ_TOKEN }}   # private repos only
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
