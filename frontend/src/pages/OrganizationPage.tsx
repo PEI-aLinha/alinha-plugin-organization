@@ -4,6 +4,7 @@ import { Building2 } from 'lucide-react'
 import type { ApiResponse } from '@alinha/api-client'
 import { ApiError, useHost } from '@alinha/plugin-sdk'
 import { Card, EmptyState, ErrorState, PageHeader, SkeletonRows } from '@alinha/ui'
+import { sectorLabel } from '../registration/sectors'
 
 type OrganizationProfile = NonNullable<ApiResponse<'/api/organization/profile'>>
 
@@ -56,7 +57,7 @@ function ProfileCard({ profile }: { profile: OrganizationProfile }) {
       <dl className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
         <Field label="NIF">{profile.nif}</Field>
         <Field label="CAE">{profile.cae}</Field>
-        <Field label="Setor">{profile.subsector ? `${profile.sector} — ${profile.subsector}` : profile.sector}</Field>
+        <Field label="Setor">{sectorLabel(profile.sector, profile.subsector)}</Field>
         <Field label="Nº de trabalhadores">{profile.employees.toLocaleString('pt-PT')}</Field>
         <Field label="Morada">
           {address.street}
