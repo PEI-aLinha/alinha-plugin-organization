@@ -11,7 +11,8 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     coverage: {
       provider: 'v8',
-      reporter: ['text-summary', 'text'],
+      // lcov paths relative to the plugin root, where its CI runs the SonarCloud analysis.
+      reporter: ['text-summary', 'text', ['lcov', { projectRoot: '..' }]],
       include: ['src/**/*.{ts,tsx}'],
       exclude: ['src/**/*.test.{ts,tsx}', 'src/test/**'],
       // RNF19: coverage target ≥ 70%.
