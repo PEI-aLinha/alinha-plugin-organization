@@ -45,6 +45,16 @@ describe('OrganizationPage', () => {
     expect(screen.queryByRole('button', { name: 'Tentar de novo' })).not.toBeInTheDocument()
   })
 
+  it('shows an error with a retry for a 404 that is not the not-registered one', async () => {
+    const api = vi.fn(async () => {
+      throw new ApiError(404, '/organization/profile')
+    }) as PluginHost['api']
+    renderPage(api)
+
+    expect(await screen.findByRole('button', { name: 'Tentar de novo' })).toBeInTheDocument()
+    expect(screen.queryByText('Ainda sem dados da organização')).not.toBeInTheDocument()
+  })
+
   it('shows an error with a retry that loads the profile again', async () => {
     const api = vi.fn()
       .mockRejectedValueOnce(new ApiError(500, '/organization/profile'))
