@@ -25,4 +25,23 @@ class OrganizationPluginTest {
         manifest.rolePermissions.filterKeys { it != "registrant" }.values
             .forEach { assertThat(it).doesNotContain(OrganizationPlugin.REGISTER) }
     }
+
+    @Test
+    fun `plugin yaml lists the same menu entries as the manifest`() {
+        assertThat(manifest.nav).isNotEmpty
+        manifest.nav.forEach { entry ->
+            assertThat(pluginYaml).contains("label: \"${entry.label}\"")
+            assertThat(pluginYaml).contains("path: ${entry.path}")
+            assertThat(pluginYaml).contains("area: ${entry.area.name.lowercase()}")
+            entry.resource?.let { assertThat(pluginYaml).contains("resource: $it") }
+        }
+    }
+
+    @Test
+    fun `every menu entry needs a permission the plugin declares`() {
+        manifest.nav.forEach { entry ->
+            val resource = requireNotNull(entry.resource) { "Menu entry '${entry.path}' must be gated by a resource" }
+            assertThat(manifest.permissions).contains("$resource:${entry.action}")
+        }
+    }
 }

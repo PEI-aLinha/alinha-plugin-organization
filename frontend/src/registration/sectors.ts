@@ -48,3 +48,11 @@ export const SECTORS: readonly Sector[] = [
 ]
 
 export const sectorById = (id: string): Sector | undefined => SECTORS.find((s) => s.id === id)
+
+/** "Indústria transformadora · Fabrico de veículos automóveis…", or "—" for an unknown sector id. */
+export function sectorLabel(sectorId: string, subsectorId?: string | null): string {
+  const sector = sectorById(sectorId)
+  if (!sector) return '—'
+  const subsector = sector.subsectors.find((s) => s.id === subsectorId)
+  return subsector ? `${sector.label} · ${subsector.label}` : sector.label
+}
