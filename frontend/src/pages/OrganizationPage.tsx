@@ -9,6 +9,10 @@ type OrganizationProfile = NonNullable<ApiResponse<'/api/organization/profile'>>
 
 const TITLE = 'Organização'
 
+/** The backend's 404 for an organization that has not registered its profile yet; any other 404 is a fault. */
+const isNotRegistered = (error: unknown) =>
+  error instanceof ApiError && error.status === 404 && error.problem?.code === 'ORGANIZATION_NOT_REGISTERED'
+
 export function OrganizationPage() {
   const profile = useApiQuery<OrganizationProfile>(['organization', 'profile'], '/organization/profile')
 
@@ -22,11 +26,10 @@ export function OrganizationPage() {
   }
 
   if (profile.isError) {
-    const notFound = profile.error instanceof ApiError && profile.error.status === 404
     return (
       <>
         <PageHeader title={TITLE} />
-        {notFound ? (
+        {isNotRegistered(profile.error) ? (
           <EmptyState icon={<Building2 className="size-5" aria-hidden />} title="Ainda sem dados da organização">
             Os dados da sua organização ainda não foram registados. Assim que estiverem preenchidos, aparecem aqui.
           </EmptyState>
