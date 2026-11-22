@@ -1,16 +1,9 @@
 import { Button, Card } from '@alinha/ui'
 import { digits, type OrganizationForm, type StepId } from './organizationForm'
-import { sectorById } from './sectors'
+import { sectorLabel } from './sectors'
 
 const formatNif = (nif: string) => digits(nif).replace(/^(\d{3})(\d{3})(\d{3})$/, '$1 $2 $3')
 const formatNumber = (value: string) => Number(digits(value)).toLocaleString('pt-PT')
-
-export function sectorLabel(sectorId: string, subsectorId: string): string {
-  const sector = sectorById(sectorId)
-  const subsector = sector?.subsectors.find((s) => s.id === subsectorId)
-  if (!sector) return '—'
-  return subsector ? `${sector.label} · ${subsector.label}` : sector.label
-}
 
 interface SummaryProps {
   form: OrganizationForm
