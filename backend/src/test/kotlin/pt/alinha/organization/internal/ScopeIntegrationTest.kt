@@ -38,6 +38,7 @@ private const val REGISTRATION = "/api/organization/registration"
 private const val PROFILE = "/api/organization/profile"
 private const val SCOPE = "/api/organization/scope"
 private const val ANSWERS = "/api/organization/scope/answers"
+private const val CLASSIFICATION_CHANGED_ACTION = "organization.nis2-classification-changed"
 
 private fun profileBody(nif: String, employees: Int = 120, turnover: Long = 18_500_000, version: Long? = null) = """
     {${version?.let { "\"version\": $it," } ?: ""}
@@ -147,6 +148,12 @@ class ScopeIntegrationTest {
             "select count(*) from audit.audit_event where tenant_id = ?::uuid and action = ?", Long::class.java, tenant, action,
         )!!
 
+    @Suppress("UNCHECKED_CAST")
+    private fun auditDetails(tenant: String, action: String): List<Map<String, Any?>> =
+        jdbc.queryForList(
+            "select details::text from audit.audit_event where tenant_id = ?::uuid and action = ?", String::class.java, tenant, action,
+        ).map { json.readValue(it, Map::class.java) as Map<String, Any?> }
+
     @Test
     fun `before any answer the scope has entity types and no result`() {
         val tenant = registered()
@@ -238,6 +245,41 @@ class ScopeIntegrationTest {
             jsonPath("$.result.size") { value("large") }
             jsonPath("$.result.nis2Classification") { value("important") }
         }
+    }
+
+    // A profile change can change the classification without touching the answers: the audit trail must say so
+    // (NFR05), as the profile's own entry only names the changed fields.
+
+    @Test
+    fun `a profile change that changes the classification is audited`() {
+        val tenant = registered()
+        changeSize(tenant, employees = 40, turnover = 9_000_000, version = 0)
+        answer(tenant).andExpect { jsonPath("$.result.nis2Classification") { value("not-covered") } }
+
+        changeSize(tenant, employees = 300, turnover = 60_000_000, version = 1)
+
+        assertThat(auditDetails(tenant, CLASSIFICATION_CHANGED_ACTION)).containsExactly(
+            mapOf("from" to "not-covered", "to" to "important", "rulesVersion" to ApplicabilityRules.VERSION, "cause" to "profile"),
+        )
+    }
+
+    @Test
+    fun `a profile change that keeps the classification records no classification change`() {
+        val tenant = registered()
+        answer(tenant).andExpect { jsonPath("$.result.nis2Classification") { value("important") } }
+
+        changeSize(tenant, employees = 130, turnover = 19_000_000, version = 0)
+
+        assertThat(auditCount(tenant, CLASSIFICATION_CHANGED_ACTION)).isZero()
+    }
+
+    @Test
+    fun `a profile change before any answer records no classification change`() {
+        val tenant = registered()
+
+        changeSize(tenant, employees = 300, turnover = 60_000_000, version = 0)
+
+        assertThat(auditCount(tenant, CLASSIFICATION_CHANGED_ACTION)).isZero()
     }
 
     @Test
@@ -495,11 +537,12 @@ class ScopeIntegrationTest {
 
         qualify(tenant).andExpect { status { isOk() } }
 
-        val details = jdbc.queryForObject(
-            "select details::text from audit.audit_event where tenant_id = ?::uuid and action = 'organization.qualification-registered'",
-            String::class.java, tenant,
+        assertThat(auditDetails(tenant, "organization.qualification-registered")).containsExactly(
+            mapOf(
+                "classification" to "essential", "actDate" to "2026-01-15",
+                "suggested" to "important", "rulesVersion" to ApplicabilityRules.VERSION,
+            ),
         )
-        assertThat(details).contains("\"essential\"").contains("\"important\"").contains("2026-01-15")
     }
 
     @Test
@@ -513,11 +556,20 @@ class ScopeIntegrationTest {
             jsonPath("$.qualification.actReference") { value("CNCS/QA/2026/0043") }
         }
 
-        val details = jdbc.queryForObject(
-            "select details::text from audit.audit_event where tenant_id = ?::uuid and action = 'organization.qualification-corrected'",
-            String::class.java, tenant,
+        assertThat(auditDetails(tenant, "organization.qualification-corrected"))
+            .containsExactly(mapOf("changed" to listOf("actReference")))
+    }
+
+    @Test
+    fun `a correction of the classification records the previous and the new one`() {
+        val tenant = registered()
+        qualify(tenant).andExpect { status { isOk() } }
+
+        qualify(tenant, qualificationBody(classification = "important", version = 0)).andExpect { status { isOk() } }
+
+        assertThat(auditDetails(tenant, "organization.qualification-corrected")).containsExactly(
+            mapOf("changed" to listOf("classification"), "from" to "essential", "to" to "important"),
         )
-        assertThat(details).contains("actReference").doesNotContain("classification").doesNotContain("0043")
     }
 
     @Test

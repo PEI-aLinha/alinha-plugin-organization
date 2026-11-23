@@ -2,6 +2,7 @@ package pt.alinha.organization.internal
 
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import pt.alinha.core.audit.AuditTrail
 import pt.alinha.core.compliance.ApplicabilityRules
@@ -27,6 +28,7 @@ import java.util.UUID
 
 internal const val ANSWERS_ENTITY_TYPE = "applicability"
 internal const val ANSWERS_TENANT_CONSTRAINT = "applicability_answers_tenant_uq"
+internal const val CLASSIFICATION_CHANGED = "organization.nis2-classification-changed"
 internal const val QUALIFICATION_ENTITY_TYPE = "cncs-qualification"
 internal const val QUALIFICATION_TENANT_CONSTRAINT = "cncs_qualification_tenant_uq"
 
@@ -110,31 +112,62 @@ class ScopeService(
             entity == null -> {
                 if (version != null) throw StaleVersionException()
                 val created = saveQualification(CncsQualificationEntity(UUID.randomUUID(), now, validated))
-                val suggested = answersEntity?.toAnswers()?.let { assess(it, profile) }?.nis2Classification
+                val suggestion = answersEntity?.toAnswers()?.let { assess(it, profile) }
                 audit.record(
                     "organization.qualification-registered", QUALIFICATION_ENTITY_TYPE, created.id.toString(),
                     mapOf(
                         "classification" to validated.classification.apiValue(),
                         "actDate" to validated.actDate.toString(),
-                        "suggested" to suggested?.apiValue(),
+                        "suggested" to suggestion?.nis2Classification?.apiValue(),
+                        "rulesVersion" to suggestion?.rulesVersion,
                     ),
                 )
                 created
             }
             version != entity.version -> throw StaleVersionException()
             else -> {
+                val previous = entity.classification
                 val changed = entity.update(validated, now)
                 if (changed.isEmpty()) return view(profile, answersEntity, entity)
+                val details = buildMap<String, Any> {
+                    put("changed", changed)
+                    // The official classification is a legal fact: keep the one it replaces, not only its name.
+                    if (previous != validated.classification) {
+                        put("from", previous.apiValue())
+                        put("to", validated.classification.apiValue())
+                    }
+                }
                 saveQualification(entity).also {
-                    // Field names only, as for the profile: the values are in the qualification itself.
-                    audit.record(
-                        "organization.qualification-corrected", QUALIFICATION_ENTITY_TYPE, it.id.toString(),
-                        mapOf("changed" to changed),
-                    )
+                    audit.record("organization.qualification-corrected", QUALIFICATION_ENTITY_TYPE, it.id.toString(), details)
                 }
             }
         }
         return view(profile, answersEntity, saved)
+    }
+
+    /**
+     * Records a change of the indicative NIS2 classification caused by a new size in the organization data
+     * (`PUT /profile`), in the caller's transaction. The result is computed on every read, and the profile's own audit
+     * entry only names the changed fields, so without this the change would leave no trace (NFR05). Records nothing
+     * before the first answers or when the classification stays the same.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    fun recordSizeChange(employeesBefore: Int, turnoverBefore: Long, profile: OrganizationProfileEntity) {
+        if (employeesBefore == profile.employees && turnoverBefore == profile.turnover) return
+        val entity = answers.findFirstBy() ?: return
+        val saved = entity.toAnswers()
+        val before = rules.assess(saved.toInput(employeesBefore, turnoverBefore))
+        val after = rules.assess(saved.toInput(profile.employees, profile.turnover))
+        if (before.nis2Classification == after.nis2Classification) return
+        audit.record(
+            CLASSIFICATION_CHANGED, ANSWERS_ENTITY_TYPE, entity.id.toString(),
+            mapOf(
+                "from" to before.nis2Classification.apiValue(),
+                "to" to after.nis2Classification.apiValue(),
+                "rulesVersion" to after.rulesVersion,
+                "cause" to "profile",
+            ),
+        )
     }
 
     private fun save(entity: ApplicabilityAnswersEntity): ApplicabilityAnswersEntity =
