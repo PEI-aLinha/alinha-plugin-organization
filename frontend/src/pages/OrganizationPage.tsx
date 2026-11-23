@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react'
-import { Building2 } from 'lucide-react'
+import { Link } from 'react-router'
+import { Building2, Scale } from 'lucide-react'
 import type { ApiResponse } from '@alinha/api-client'
 import { ApiError, formatNumber, useApiQuery } from '@alinha/plugin-sdk'
-import { Card, EmptyState, ErrorState, PageHeader, SkeletonRows } from '@alinha/ui'
+import { Card, EmptyState, ErrorState, PageHeader, SkeletonRows, buttonClass } from '@alinha/ui'
 import { sectorLabel } from '../registration/sectors'
 
 type OrganizationProfile = NonNullable<ApiResponse<'/api/organization/profile'>>
@@ -42,7 +43,12 @@ export function OrganizationPage() {
 
   return (
     <>
-      <PageHeader title={TITLE} subtitle={profile.data.name} />
+      <PageHeader title={TITLE} subtitle={profile.data.name} actions={(
+        // Relative to this route (`organization`): /org/<slug>/organization/scope.
+        <Link to="scope" className={buttonClass({ variant: 'secondary' })}>
+          <Scale className="size-4" aria-hidden />Ver o âmbito regulatório
+        </Link>
+      )} />
       <ProfileCard profile={profile.data} />
     </>
   )
