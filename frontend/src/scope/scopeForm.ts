@@ -58,7 +58,19 @@ const PICK_A_TYPE = 'Escolha pelo menos um tipo, ou indique que nenhum descreve 
 const EUROS_ONLY = 'Use só números, em euros e sem cêntimos. Exemplo: 18 500 000.'
 
 const yesNo = (value: boolean | undefined): YesNo => (value ? 'yes' : 'no')
-const euros = (typed: string) => typed.replace(/[\s.]/g, '')
+/** Whole euros as typed by a person: spaces anywhere; dots only as thousands separators (`18.500.000`). */
+const THOUSANDS_WITH_DOTS = /^\d{1,3}(\.\d{3})+$/
+/** Beyond 15 digits a JavaScript number loses precision (and no balance sheet is that large). */
+const MAX_EURO_DIGITS = 15
+/**
+ * The digits of an amount, or the text unchanged when it is not a whole amount (so validation refuses it):
+ * `18.5` stays `18.5` instead of silently becoming 185.
+ */
+const euros = (typed: string) => {
+  const compact = typed.replace(/\s/g, '')
+  return THOUSANDS_WITH_DOTS.test(compact) ? compact.replace(/\./g, '') : compact
+}
+const isWholeEuros = (digits: string) => new RegExp(`^\\d{1,${MAX_EURO_DIGITS}}$`).test(digits)
 
 /** The saved answers as a form; an empty one before the first save. */
 export function fromAnswers(answers: Answers | null): ScopeForm {
@@ -92,7 +104,7 @@ export function validateScope(form: ScopeForm): ScopeErrors {
   for (const question of YES_NO_QUESTIONS) {
     if (form[question] === null) errors[question] = ANSWER_REQUIRED
   }
-  if (form.balanceSheet.trim() && !/^\d+$/.test(euros(form.balanceSheet))) errors.balanceSheet = EUROS_ONLY
+  if (form.balanceSheet.trim() && !isWholeEuros(euros(form.balanceSheet))) errors.balanceSheet = EUROS_ONLY
   return errors
 }
 

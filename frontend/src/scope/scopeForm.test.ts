@@ -93,6 +93,20 @@ describe('validateScope', () => {
     expect(validateScope({ ...COMPLETE, balanceSheet: '-5' }).balanceSheet)
       .toBe('Use só números, em euros e sem cêntimos. Exemplo: 18 500 000.')
   })
+
+  it('refuses a decimal amount instead of reading its dot as a thousands separator', () => {
+    expect(validateScope({ ...COMPLETE, balanceSheet: '18.5' }).balanceSheet)
+      .toBe('Use só números, em euros e sem cêntimos. Exemplo: 18 500 000.')
+    expect(validateScope({ ...COMPLETE, balanceSheet: '18.500.00' }).balanceSheet)
+      .toBe('Use só números, em euros e sem cêntimos. Exemplo: 18 500 000.')
+    expect(toAnswersBody({ ...COMPLETE, balanceSheet: '18.500' }, null).annualBalanceSheetEur).toBe(18_500)
+  })
+
+  it('refuses an amount beyond 15 digits', () => {
+    expect(validateScope({ ...COMPLETE, balanceSheet: '9'.repeat(15) }).balanceSheet).toBeUndefined()
+    expect(validateScope({ ...COMPLETE, balanceSheet: '9'.repeat(16) }).balanceSheet)
+      .toBe('Use só números, em euros e sem cêntimos. Exemplo: 18 500 000.')
+  })
 })
 
 describe('toAnswersBody', () => {
