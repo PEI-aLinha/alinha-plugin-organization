@@ -12,7 +12,6 @@ import pt.alinha.organization.internal.domain.ApplicabilityAnswersInput
 import pt.alinha.organization.internal.domain.ApplicabilityAnswersValidator
 import pt.alinha.organization.internal.domain.CncsQualificationInput
 import pt.alinha.organization.internal.domain.CncsQualificationValidator
-import pt.alinha.organization.internal.domain.FieldError
 import pt.alinha.organization.internal.domain.QualificationValidation
 import pt.alinha.organization.internal.domain.suggestedEntityTypes
 import pt.alinha.organization.internal.persistence.ApplicabilityAnswersEntity
@@ -28,7 +27,6 @@ import java.util.UUID
 
 internal const val ANSWERS_ENTITY_TYPE = "applicability"
 internal const val ANSWERS_TENANT_CONSTRAINT = "applicability_answers_tenant_uq"
-internal const val RELOAD_MESSAGE = "Recarregue a página e volte a fazer as alterações."
 internal const val QUALIFICATION_ENTITY_TYPE = "cncs-qualification"
 internal const val QUALIFICATION_TENANT_CONSTRAINT = "cncs_qualification_tenant_uq"
 
@@ -57,16 +55,16 @@ class ScopeService(
     }
 
     /**
-     * Saves the answers. The first save has no [version]; later ones must send the version that was read. Saving
-     * the same answers changes and records nothing.
+     * Saves the answers. The first save has no [version]; later ones must send the version that was read. No
+     * [version] once answers exist is a stale form (opened before someone else's first save), so a 409 like any
+     * other old version. Saving the same answers changes and records nothing.
      */
     @Transactional
     fun saveAnswers(input: ApplicabilityAnswersInput, version: Long?): ScopeView {
         // Looked up first: with no organization there is nothing to answer for, whatever the data.
         val profile = profiles.findFirstBy() ?: throw OrganizationNotRegisteredException()
         val entity = answers.findFirstBy()
-        val missingVersion = if (entity != null && version == null) listOf(FieldError("version", RELOAD_MESSAGE)) else emptyList()
-        val validated = when (val result = ApplicabilityAnswersValidator.validate(input, missingVersion)) {
+        val validated = when (val result = ApplicabilityAnswersValidator.validate(input)) {
             is AnswersValidation.Valid -> result.answers
             is AnswersValidation.Invalid -> throw InvalidOrganizationException(result.errors)
         }
@@ -94,16 +92,15 @@ class ScopeService(
 
     /**
      * Registers or corrects the official CNCS qualification, which from then on overrides the indicative one. The
-     * first registration has no [version]; a correction must send the version that was read. The same Act again
-     * changes and records nothing.
+     * first registration has no [version]; a correction must send the version that was read. No [version] once a
+     * qualification exists is a stale form, so a 409. The same Act again changes and records nothing.
      */
     @Transactional
     fun registerQualification(input: CncsQualificationInput, version: Long?): ScopeView {
         val profile = profiles.findFirstBy() ?: throw OrganizationNotRegisteredException()
         val entity = qualifications.findFirstBy()
-        val missingVersion = if (entity != null && version == null) listOf(FieldError("version", RELOAD_MESSAGE)) else emptyList()
         val today = LocalDate.now(LISBON)
-        val validated = when (val result = CncsQualificationValidator.validate(input, today, missingVersion)) {
+        val validated = when (val result = CncsQualificationValidator.validate(input, today)) {
             is QualificationValidation.Valid -> result.qualification
             is QualificationValidation.Invalid -> throw InvalidOrganizationException(result.errors)
         }

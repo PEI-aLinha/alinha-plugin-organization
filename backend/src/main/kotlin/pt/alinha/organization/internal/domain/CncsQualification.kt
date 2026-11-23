@@ -39,12 +39,8 @@ object CncsQualificationValidator {
     )
 
     /** [today] is the date in Portugal (Europe/Lisbon), given by the caller so tests can fix it. */
-    fun validate(
-        input: CncsQualificationInput,
-        today: LocalDate,
-        extraErrors: List<FieldError> = emptyList(),
-    ): QualificationValidation {
-        val errors = extraErrors.toMutableList()
+    fun validate(input: CncsQualificationInput, today: LocalDate): QualificationValidation {
+        val errors = mutableListOf<FieldError>()
         fun fail(field: String, message: String) { errors += FieldError(field, message) }
 
         val classification = OFFICIAL[input.classification]

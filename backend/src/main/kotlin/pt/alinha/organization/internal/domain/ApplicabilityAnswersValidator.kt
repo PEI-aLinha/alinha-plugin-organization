@@ -14,8 +14,8 @@ object ApplicabilityAnswersValidator {
 
     private val entityTypesByName = Nis2EntityType.entries.associateBy { it.name }
 
-    fun validate(input: ApplicabilityAnswersInput, extraErrors: List<FieldError> = emptyList()): AnswersValidation {
-        val errors = extraErrors.toMutableList()
+    fun validate(input: ApplicabilityAnswersInput): AnswersValidation {
+        val errors = mutableListOf<FieldError>()
         fun fail(field: String, message: String) { errors += FieldError(field, message) }
 
         val balanceSheet = input.annualBalanceSheetEur

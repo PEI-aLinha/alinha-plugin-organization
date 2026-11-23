@@ -322,15 +322,18 @@ class ScopeIntegrationTest {
         }
     }
 
+    /** A form opened before someone else's first save sends no version: it is stale, like any other old version. */
     @Test
-    fun `a second save without version is invalid data`() {
+    fun `a save without version after someone else's first save is a version conflict`() {
         val tenant = registered()
         answer(tenant).andExpect { status { isOk() } }
 
         answer(tenant, answersBody(listOf("FOOD"))).andExpect {
-            status { isUnprocessableContent() }
-            jsonPath("$.errors[0].field") { value("version") }
+            status { isConflict() }
+            jsonPath("$.code") { value("VERSION_CONFLICT") }
         }
+        readScope(tenant).andExpect { jsonPath("$.answers.nis2.entityTypes[0]") { value("MOTOR_VEHICLE_MANUFACTURING") } }
+        assertThat(auditCount(tenant, "organization.scope-answered")).isEqualTo(1)
     }
 
     @Test
@@ -575,15 +578,18 @@ class ScopeIntegrationTest {
         }
     }
 
+    /** A modal opened before someone else registered the Act sends no version: it is stale, like any other old version. */
     @Test
-    fun `a correction without version is invalid data`() {
+    fun `a registration without version after someone else's is a version conflict`() {
         val tenant = registered()
         qualify(tenant).andExpect { status { isOk() } }
 
         qualify(tenant, qualificationBody(classification = "important")).andExpect {
-            status { isUnprocessableContent() }
-            jsonPath("$.errors[0].field") { value("version") }
+            status { isConflict() }
+            jsonPath("$.code") { value("VERSION_CONFLICT") }
         }
+        readScope(tenant).andExpect { jsonPath("$.qualification.classification") { value("essential") } }
+        assertThat(auditCount(tenant, "organization.qualification-corrected")).isZero()
     }
 
     @Test

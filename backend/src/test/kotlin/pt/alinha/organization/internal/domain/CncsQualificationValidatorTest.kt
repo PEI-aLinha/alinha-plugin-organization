@@ -95,15 +95,12 @@ class CncsQualificationValidatorTest {
     }
 
     @Test
-    fun `every error is reported at once, after the extra ones`() {
-        val extra = FieldError("version", "Recarregue a página e volte a fazer as alterações.")
-
+    fun `every error is reported at once`() {
         val result = CncsQualificationValidator.validate(
             CncsQualificationInput(classification = "not-covered", actDate = null, actReference = "y".repeat(200)),
             TODAY,
-            listOf(extra),
         ) as QualificationValidation.Invalid
 
-        assertThat(result.errors.map { it.field }).containsExactly("version", "classification", "actDate", "actReference")
+        assertThat(result.errors.map { it.field }).containsExactly("classification", "actDate", "actReference")
     }
 }

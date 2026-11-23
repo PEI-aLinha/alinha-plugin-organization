@@ -108,18 +108,17 @@ class ApplicabilityAnswersValidatorTest {
     }
 
     @Test
-    fun `every error is reported at once, after the extra ones`() {
+    fun `every error is reported at once`() {
         val input = ApplicabilityAnswersInput(
             annualBalanceSheetEur = -5,
             nis2 = Nis2AnswersInput(entityTypes = listOf("NOPE")),
             aiAct = AiActAnswersInput(highRiskArea = true),
         )
-        val extra = FieldError("version", "Recarregue a página e volte a fazer as alterações.")
 
-        val result = ApplicabilityAnswersValidator.validate(input, listOf(extra)) as AnswersValidation.Invalid
+        val result = ApplicabilityAnswersValidator.validate(input) as AnswersValidation.Invalid
 
         assertThat(result.errors.map { it.field }).containsExactly(
-            "version", "annualBalanceSheetEur", "nis2.entityTypes", "gdpr.processesPersonalData", "aiAct",
+            "annualBalanceSheetEur", "nis2.entityTypes", "gdpr.processesPersonalData", "aiAct",
         )
     }
 
