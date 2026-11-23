@@ -10,8 +10,10 @@ import pt.alinha.organization.internal.ScopeService
 import pt.alinha.organization.internal.ScopeView
 import pt.alinha.organization.internal.domain.AiActAnswersInput
 import pt.alinha.organization.internal.domain.ApplicabilityAnswersInput
+import pt.alinha.organization.internal.domain.CncsQualificationInput
 import pt.alinha.organization.internal.domain.GdprAnswersInput
 import pt.alinha.organization.internal.domain.Nis2AnswersInput
+import java.time.LocalDate
 
 /** Body of `PUT /scope/answers`: the answers plus the version they were loaded with (null on the first save). */
 data class ApplicabilityAnswersUpdate(
@@ -23,6 +25,16 @@ data class ApplicabilityAnswersUpdate(
     val aiAct: AiActAnswersInput? = null,
 ) {
     fun toInput() = ApplicabilityAnswersInput(publicBody, annualBalanceSheetEur, nis2, gdpr, aiAct)
+}
+
+/** Body of `PUT /scope/qualification`: the Qualification Act plus the version it was loaded with (null the first time). */
+data class CncsQualificationUpdate(
+    val version: Long? = null,
+    val classification: String? = null,
+    val actDate: LocalDate? = null,
+    val actReference: String? = null,
+) {
+    fun toInput() = CncsQualificationInput(classification, actDate, actReference)
 }
 
 /** Regulatory scope and NIS2 classification (organization#4). Errors: OrganizationProblems. */
@@ -38,4 +50,9 @@ class ScopeController(private val scopes: ScopeService) {
     @PutMapping("/answers")
     fun saveAnswers(@RequestBody body: ApplicabilityAnswersUpdate): ScopeView =
         scopes.saveAnswers(body.toInput(), body.version)
+
+    @RequiresPermission("organization", "edit")
+    @PutMapping("/qualification")
+    fun registerQualification(@RequestBody body: CncsQualificationUpdate): ScopeView =
+        scopes.registerQualification(body.toInput(), body.version)
 }

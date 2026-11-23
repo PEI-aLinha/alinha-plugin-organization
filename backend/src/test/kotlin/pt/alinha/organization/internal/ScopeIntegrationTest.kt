@@ -22,10 +22,13 @@ import pt.alinha.core.compliance.ApplicabilityRules
 import pt.alinha.core.compliance.Nis2EntityType
 import pt.alinha.core.tenant.TenantContext
 import pt.alinha.organization.internal.domain.ApplicabilityAnswersInput
+import pt.alinha.organization.internal.domain.CncsQualificationInput
 import pt.alinha.organization.internal.domain.GdprAnswersInput
 import pt.alinha.organization.internal.domain.Nis2AnswersInput
 import pt.alinha.pluginapi.TenantId
 import tools.jackson.databind.json.JsonMapper
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.UUID
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -335,11 +338,8 @@ class ScopeIntegrationTest {
         val tenant = registered()
         val input = ApplicabilityAnswersInput(gdpr = GdprAnswersInput(processesPersonalData = false), nis2 = Nis2AnswersInput())
 
-        // Another first save inserted its row but has not committed: this save does not see it, and its INSERT waits
-        // on the unique tenant index until the other one commits, then fails. The API must answer 409, not 500.
-        val other = dataSource.connection
-        other.autoCommit = false
-        other.prepareStatement(
+        val error = raceWithUncommittedInsert(
+            tenant,
             """
             insert into organization.applicability_answers (id, tenant_id, version, public_body, nis2_entity_types,
                 critical_entity, significant_impact, higher_education, processes_personal_data, regular_or_risky_processing,
@@ -348,40 +348,51 @@ class ScopeIntegrationTest {
             values (?, ?::uuid, 0, false, '{}', false, false, false, false, false, false, false, false, false, false,
                 false, false, now(), now())
             """.trimIndent(),
-        ).use {
-            it.setObject(1, UUID.randomUUID())
-            it.setString(2, tenant)
-            it.executeUpdate()
-        }
+            "applicability_answers",
+        ) { service.saveAnswers(input, null) }
 
-        val executor = Executors.newSingleThreadExecutor()
-        try {
-            // runAs refuses to run inside a request; the executor's thread has none.
-            val save = executor.submit<Unit> {
-                tenants.runAs(TenantId(UUID.fromString(tenant))) { tx.execute { service.saveAnswers(input, null) } }
-            }
-            waitUntilBlockedOnLock()
-            other.commit()
-
-            val error = runCatching { save.get(30, TimeUnit.SECONDS) }.exceptionOrNull()
-            assertThat(error?.cause).isInstanceOf(StaleVersionException::class.java)
-        } finally {
-            other.close()
-            executor.shutdownNow()
-        }
+        assertThat(error).isInstanceOf(StaleVersionException::class.java)
         assertThat(auditCount(tenant, "organization.scope-answered")).isZero()
     }
 
-    private fun waitUntilBlockedOnLock() {
+    /**
+     * Another first write of this tenant inserted its row ([insert], with the id and tenant as parameters 1 and 2) but
+     * has not committed: [write] does not see it, and its INSERT waits on the unique tenant index until the other one
+     * commits, then fails. Returns what [write] threw; the API must answer 409, not 500.
+     */
+    private fun raceWithUncommittedInsert(tenant: String, insert: String, table: String, write: () -> Unit): Throwable? {
+        dataSource.connection.use { other ->
+            other.autoCommit = false
+            other.prepareStatement(insert).use {
+                it.setObject(1, UUID.randomUUID())
+                it.setString(2, tenant)
+                it.executeUpdate()
+            }
+            val executor = Executors.newSingleThreadExecutor()
+            try {
+                // runAs refuses to run inside a request; the executor's thread has none.
+                val attempt = executor.submit<Unit> {
+                    tenants.runAs(TenantId(UUID.fromString(tenant))) { tx.execute { write() } }
+                }
+                waitUntilBlockedOnLock(table)
+                other.commit()
+                return runCatching { attempt.get(30, TimeUnit.SECONDS) }.exceptionOrNull()?.cause
+            } finally {
+                executor.shutdownNow()
+            }
+        }
+    }
+
+    private fun waitUntilBlockedOnLock(table: String) {
         repeat(200) {
             val waiting = jdbc.queryForObject(
-                "select count(*) from pg_stat_activity where wait_event_type = 'Lock' and query like '%applicability_answers%'",
-                Long::class.java,
+                "select count(*) from pg_stat_activity where wait_event_type = 'Lock' and query like ?",
+                Long::class.java, "%insert into organization.$table%",
             )!!
             if (waiting > 0) return
             Thread.sleep(50)
         }
-        error("the save never waited on the other insert")
+        error("the write never waited on the other insert")
     }
 
     @Test
@@ -430,4 +441,214 @@ class ScopeIntegrationTest {
                 String::class.java, tenantA, tenantB),
         ).containsExactly(tenantA)
     }
+
+    // --- Official CNCS qualification (US11) ---
+
+    private fun qualify(tenant: String, body: String = qualificationBody(), role: String = "responsible"): ResultActionsDsl =
+        mvc.put(QUALIFICATION) {
+            header("Authorization", "Bearer $role.${UUID.randomUUID()}.$tenant")
+            if (role == "consultant") header("X-Alinha-Tenant", tenant)
+            contentType = MediaType.APPLICATION_JSON
+            content = body
+        }
+
+    @Test
+    fun `the official qualification overrides the suggestion`() {
+        val tenant = registered()
+        answer(tenant).andExpect { jsonPath("$.nis2.classification") { value("important") } }
+
+        qualify(tenant).andExpect {
+            status { isOk() }
+            jsonPath("$.qualification.version") { value(0) }
+            jsonPath("$.qualification.classification") { value("essential") }
+            jsonPath("$.qualification.actDate") { value("2026-01-15") }
+            jsonPath("$.qualification.actReference") { value("CNCS/QA/2026/0042") }
+            jsonPath("$.nis2.classification") { value("essential") }
+            jsonPath("$.nis2.official") { value(true) }
+            jsonPath("$.nis2.suggested") { value("important") }
+            jsonPath("$.result.nis2Classification") { value("important") }
+        }
+        readScope(tenant).andExpect { jsonPath("$.nis2.classification") { value("essential") } }
+    }
+
+    @Test
+    fun `a qualification can be registered before any answer`() {
+        val tenant = registered()
+
+        qualify(tenant, qualificationBody(classification = "important", reference = null)).andExpect {
+            status { isOk() }
+            jsonPath("$.qualification.actReference") { value(null) }
+            jsonPath("$.nis2.classification") { value("important") }
+            jsonPath("$.nis2.official") { value(true) }
+            jsonPath("$.nis2.suggested") { value(null) }
+            jsonPath("$.result") { value(null) }
+        }
+    }
+
+    @Test
+    fun `registering is audited with the suggestion`() {
+        val tenant = registered()
+        answer(tenant).andExpect { status { isOk() } }
+
+        qualify(tenant).andExpect { status { isOk() } }
+
+        val details = jdbc.queryForObject(
+            "select details::text from audit.audit_event where tenant_id = ?::uuid and action = 'organization.qualification-registered'",
+            String::class.java, tenant,
+        )
+        assertThat(details).contains("\"essential\"").contains("\"important\"").contains("2026-01-15")
+    }
+
+    @Test
+    fun `a correction records only the changed fields`() {
+        val tenant = registered()
+        qualify(tenant).andExpect { status { isOk() } }
+
+        qualify(tenant, qualificationBody(reference = "CNCS/QA/2026/0043", version = 0)).andExpect {
+            status { isOk() }
+            jsonPath("$.qualification.version") { value(1) }
+            jsonPath("$.qualification.actReference") { value("CNCS/QA/2026/0043") }
+        }
+
+        val details = jdbc.queryForObject(
+            "select details::text from audit.audit_event where tenant_id = ?::uuid and action = 'organization.qualification-corrected'",
+            String::class.java, tenant,
+        )
+        assertThat(details).contains("actReference").doesNotContain("classification").doesNotContain("0043")
+    }
+
+    @Test
+    fun `registering the same act again records nothing`() {
+        val tenant = registered()
+        qualify(tenant).andExpect { status { isOk() } }
+
+        qualify(tenant, qualificationBody(version = 0)).andExpect {
+            status { isOk() }
+            jsonPath("$.qualification.version") { value(0) }
+        }
+        assertThat(auditCount(tenant, "organization.qualification-corrected")).isZero()
+    }
+
+    @Test
+    fun `an invalid qualification is a 422`() {
+        val tenant = registered()
+        val tomorrow = LocalDate.now(ZoneId.of("Europe/Lisbon")).plusDays(1)
+
+        qualify(tenant, qualificationBody(classification = "not-covered", actDate = tomorrow.toString())).andExpect {
+            status { isUnprocessableContent() }
+            jsonPath("$.code") { value("VALIDATION_FAILED") }
+            jsonPath("$.errors[0].field") { value("classification") }
+            jsonPath("$.errors[1].field") { value("actDate") }
+            jsonPath("$.errors[1].message") { value("A data não pode ser no futuro.") }
+        }
+        readScope(tenant).andExpect { jsonPath("$.qualification") { value(null) } }
+    }
+
+    @Test
+    fun `a malformed date is a 422 on actDate`() {
+        val tenant = registered()
+
+        qualify(tenant, qualificationBody(actDate = "2026-13-40")).andExpect {
+            status { isUnprocessableContent() }
+            jsonPath("$.errors[0].field") { value("actDate") }
+        }
+    }
+
+    @Test
+    fun `a stale qualification version is a 409`() {
+        val tenant = registered()
+        qualify(tenant).andExpect { status { isOk() } }
+
+        qualify(tenant, qualificationBody(classification = "important", version = 4)).andExpect {
+            status { isConflict() }
+            jsonPath("$.code") { value("VERSION_CONFLICT") }
+        }
+    }
+
+    @Test
+    fun `a version for a qualification that does not exist yet is a 409`() {
+        val tenant = registered()
+
+        qualify(tenant, qualificationBody(version = 0)).andExpect {
+            status { isConflict() }
+            jsonPath("$.code") { value("VERSION_CONFLICT") }
+        }
+    }
+
+    @Test
+    fun `a correction without version is invalid data`() {
+        val tenant = registered()
+        qualify(tenant).andExpect { status { isOk() } }
+
+        qualify(tenant, qualificationBody(classification = "important")).andExpect {
+            status { isUnprocessableContent() }
+            jsonPath("$.errors[0].field") { value("version") }
+        }
+    }
+
+    @Test
+    fun `a second first registration is a version conflict`() {
+        val tenant = registered()
+
+        val error = raceWithUncommittedInsert(
+            tenant,
+            """
+            insert into organization.cncs_qualification (id, tenant_id, version, classification, act_date,
+                registered_at, updated_at)
+            values (?, ?::uuid, 0, 'IMPORTANT', date '2026-01-10', now(), now())
+            """.trimIndent(),
+            "cncs_qualification",
+        ) {
+            service.registerQualification(
+                CncsQualificationInput("essential", LocalDate.of(2026, 1, 15)),
+                null,
+            )
+        }
+
+        assertThat(error).isInstanceOf(StaleVersionException::class.java)
+        assertThat(auditCount(tenant, "organization.qualification-registered")).isZero()
+    }
+
+    @Test
+    fun `before registering the organization there is no qualification to register`() {
+        qualify(UUID.randomUUID().toString(), "{}").andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("ORGANIZATION_NOT_REGISTERED") }
+        }
+    }
+
+    @ParameterizedTest(name = "{0} registers the qualification: {1}")
+    @CsvSource("responsible,200", "consultant,200", "analyst,403", "registrant,403")
+    fun `who registers the qualification`(role: String, status: Int) {
+        val tenant = registered()
+
+        qualify(tenant, role = role).andExpect { status { isEqualTo(status) } }
+        if (status == 403) assertThat(auditCount(tenant, "organization.qualification-registered")).isZero()
+    }
+
+    @Test
+    fun `another organization never sees this qualification`() {
+        val tenantA = registered()
+        qualify(tenantA).andExpect { status { isOk() } }
+        val tenantB = registered()
+
+        readScope(tenantB).andExpect {
+            status { isOk() }
+            jsonPath("$.qualification") { value(null) }
+            jsonPath("$.nis2") { value(null) }
+        }
+    }
 }
+
+private const val QUALIFICATION = "/api/organization/scope/qualification"
+
+private fun qualificationBody(
+    classification: String = "essential",
+    actDate: String = "2026-01-15",
+    reference: String? = "CNCS/QA/2026/0042",
+    version: Long? = null,
+) = """
+    {${version?.let { "\"version\": $it," } ?: ""}
+     "classification": "$classification", "actDate": "$actDate",
+     "actReference": ${reference?.let { "\"$it\"" } ?: "null"}}
+""".trimIndent()
