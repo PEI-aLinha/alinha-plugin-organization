@@ -92,9 +92,63 @@ describe('QualificationModal', () => {
     renderModal(api, null)
 
     choose('Entidade importante')
-    typeDate('2025-11-30')
+    typeDate('2026-01-10')
     save()
 
     expect(await screen.findByText('A data não pode ser anterior a 4 de dezembro de 2025, quando a lei foi publicada.')).toBeInTheDocument()
+  })
+
+  it('refuses a date before Decree-Law 125/2025 without calling the server', () => {
+    const api = vi.fn() as unknown as PluginHost['api']
+    renderModal(api, null)
+    choose('Entidade essencial')
+
+    typeDate('2025-12-03')
+    save()
+
+    expect(screen.getByText('A data não pode ser anterior a 4 de dezembro de 2025, quando a lei foi publicada.')).toBeInTheDocument()
+    expect(screen.getByLabelText('Data do Ato de Qualificação')).toHaveAttribute('min', '2025-12-04')
+    expect(api).not.toHaveBeenCalled()
+  })
+
+  it('drops a server message once its field changes', async () => {
+    const api = vi.fn(async () => {
+      throw new ApiError(422, '/organization/scope/qualification', undefined, {
+        code: 'VALIDATION_FAILED',
+        detail: 'Há dados por corrigir.',
+        errors: [{ field: 'actReference', message: 'Use no máximo 100 caracteres.' }],
+      })
+    }) as PluginHost['api']
+    renderModal(api, null)
+    choose('Entidade importante')
+    typeDate('2026-01-10')
+    save()
+    expect(await screen.findByText('Use no máximo 100 caracteres.')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText(/Referência do Ato/), { target: { value: 'CNCS/2026/12' } })
+
+    expect(screen.queryByText('Use no máximo 100 caracteres.')).not.toBeInTheDocument()
+  })
+
+  it('focuses the first invalid field after a failed save', () => {
+    renderModal(undefined, null)
+
+    save()
+
+    expect(screen.getByLabelText('Entidade essencial')).toHaveFocus()
+  })
+
+  it('warns that reloading after a conflict replaces what was typed', async () => {
+    const api = vi.fn(async () => {
+      throw new ApiError(409, '/organization/scope/qualification', undefined, {
+        code: 'VERSION_CONFLICT',
+        detail: 'Os dados foram alterados entretanto. Recarregue a página e volte a fazer as alterações.',
+      })
+    }) as PluginHost['api']
+    renderModal(api)
+
+    save()
+
+    expect(await screen.findByText('Ao carregar, os dados que escreveu aqui são substituídos pelos que estão guardados.')).toBeInTheDocument()
   })
 })
