@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { ApiError, errorMessage, fieldErrors, useApiMutation } from '@alinha/plugin-sdk'
 import { Button, Card, Checkbox, Field, Note, RadioGroup, TextInput, type RadioOption } from '@alinha/ui'
@@ -6,6 +6,7 @@ import {
   fromAnswers, groupEntityTypes, toAnswersBody, validateScope,
   type AnswersBody, type EntityTypeOption, type Nis2EntityType, type Scope, type ScopeErrors, type ScopeForm, type YesNo,
 } from './scopeForm'
+import { focusFirstInvalid } from './focus'
 
 const YES_NO: RadioOption<YesNo>[] = [
   { value: 'yes', label: 'Sim' },
@@ -19,6 +20,21 @@ const SERVER_FIELDS: Record<string, keyof ScopeForm> = {
   gdpr: 'processesPersonalData',
   'gdpr.processesPersonalData': 'processesPersonalData',
   aiAct: 'usesAiSystems',
+}
+
+/**
+ * The question whose message a change to this answer may fix: a follow-up box belongs to its parent question, so
+ * ticking it clears the parent's server message too.
+ */
+const ERROR_ANCHOR: Partial<Record<keyof ScopeForm, keyof ScopeForm>> = {
+  noEntityType: 'entityTypes',
+  regularOrRiskyProcessing: 'processesPersonalData',
+  specialOrCriminalData: 'processesPersonalData',
+  largeScaleMonitoring: 'processesPersonalData',
+  largeScaleSpecialData: 'processesPersonalData',
+  providesAiSystems: 'usesAiSystems',
+  highRiskArea: 'usesAiSystems',
+  interactsOrGeneratesContent: 'usesAiSystems',
 }
 
 const PERSONAL_DATA_DETAILS = [
@@ -43,9 +59,9 @@ function Question({ n, title, children }: { n: number; title: string; children: 
   )
 }
 
-function ErrorText({ children }: { children?: string }) {
+function ErrorText({ id, children }: { id?: string; children?: string }) {
   if (!children) return null
-  return <p role="alert" className="text-[0.8125rem] font-semibold text-danger">{children}</p>
+  return <p id={id} role="alert" className="text-[0.8125rem] font-semibold text-danger">{children}</p>
 }
 
 /**
@@ -55,9 +71,16 @@ function ErrorText({ children }: { children?: string }) {
  */
 export function ScopeQuestions({ scope, onSaved, onCancel }: { scope: Scope; onSaved: () => void; onCancel?: () => void }) {
   const queryClient = useQueryClient()
+  const formRef = useRef<HTMLFormElement>(null)
+  const typesErrorId = useId()
   const [form, setForm] = useState<ScopeForm>(() => fromAnswers(scope.answers))
   const [submitted, setSubmitted] = useState(false)
   const [serverErrors, setServerErrors] = useState<ScopeErrors>({})
+  // Bumped after a failed submit (here or on the server): the effect then focuses the first invalid question.
+  const [failedSubmits, setFailedSubmits] = useState(0)
+  useEffect(() => {
+    if (failedSubmits > 0) focusFirstInvalid(formRef.current)
+  }, [failedSubmits])
   const save = useApiMutation<AnswersBody, Scope>({
     method: 'PUT',
     path: '/organization/scope/answers',
@@ -70,25 +93,47 @@ export function ScopeQuestions({ scope, onSaved, onCancel }: { scope: Scope; onS
         if (key) byField[key] = message
       }
       setServerErrors(byField)
+      if (Object.keys(byField).length > 0) setFailedSubmits((n) => n + 1)
     },
   })
 
   const errors: ScopeErrors = { ...(submitted ? validateScope(form) : {}), ...serverErrors }
-  const set = <K extends keyof ScopeForm>(key: K, value: ScopeForm[K]) => setForm((f) => ({ ...f, [key]: value }))
+  /** A server message is about the answer as it was sent: once that answer changes, it no longer applies. */
+  const clearServerError = (key: keyof ScopeForm) => {
+    const keys = [key, ERROR_ANCHOR[key]]
+    setServerErrors((current) => {
+      if (!keys.some((k) => k && k in current)) return current
+      return Object.fromEntries(Object.entries(current).filter(([k]) => !keys.includes(k as keyof ScopeForm)))
+    })
+  }
+  const set = <K extends keyof ScopeForm>(key: K, value: ScopeForm[K]) => {
+    setForm((f) => ({ ...f, [key]: value }))
+    clearServerError(key)
+  }
   const conflict = save.error instanceof ApiError && save.error.status === 409
   const unmapped = save.isError && !conflict && Object.keys(serverErrors).length === 0
 
-  const toggleType = (id: Nis2EntityType, on: boolean) => setForm((f) => ({
-    ...f,
-    noEntityType: on ? false : f.noEntityType,
-    entityTypes: on ? [...f.entityTypes, id] : f.entityTypes.filter((t) => t !== id),
-  }))
+  const toggleType = (id: Nis2EntityType, on: boolean) => {
+    setForm((f) => ({
+      ...f,
+      noEntityType: on ? false : f.noEntityType,
+      entityTypes: on ? [...f.entityTypes, id] : f.entityTypes.filter((t) => t !== id),
+    }))
+    clearServerError('entityTypes')
+  }
+  const setNoEntityType = (on: boolean) => {
+    setForm((f) => ({ ...f, noEntityType: on, entityTypes: on ? [] : f.entityTypes }))
+    clearServerError('entityTypes')
+  }
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
     setSubmitted(true)
     setServerErrors({})
-    if (Object.keys(validateScope(form)).length > 0) return
+    if (Object.keys(validateScope(form)).length > 0) {
+      setFailedSubmits((n) => n + 1)
+      return
+    }
     save.mutate(toAnswersBody(form, scope.answers?.version ?? null))
   }
 
@@ -104,11 +149,14 @@ export function ScopeQuestions({ scope, onSaved, onCancel }: { scope: Scope; onS
 
   return (
     <Card className="flex flex-col gap-6 px-6 py-6">
-      <form noValidate onSubmit={submit} className="flex flex-col gap-6">
+      <form ref={formRef} noValidate onSubmit={submit} className="flex flex-col gap-6">
         <Question n={1} title="O que a empresa faz">
           <p className="text-[0.875rem] text-ink-soft">
             Marque todas as atividades que a empresa faz. É isto, e não só o setor, que decide se a lei de cibersegurança se aplica.
           </p>
+          <div role="group" aria-label="Atividades da empresa" className="flex flex-col gap-4"
+            aria-invalid={errors.entityTypes ? true : undefined}
+            aria-describedby={errors.entityTypes ? typesErrorId : undefined}>
           {suggested.length > 0 && (
             <fieldset className="flex min-w-0 flex-col gap-3">
               <legend className="mb-1.5 text-[0.8125rem] font-semibold text-ink-soft">Sugeridos pelo seu setor</legend>
@@ -124,8 +172,9 @@ export function ScopeQuestions({ scope, onSaved, onCancel }: { scope: Scope; onS
             ))}
           </div>
           <Checkbox label="Nenhum destes descreve a empresa" checked={form.noEntityType}
-            onChange={(e) => setForm((f) => ({ ...f, noEntityType: e.target.checked, entityTypes: e.target.checked ? [] : f.entityTypes }))} />
-          <ErrorText>{errors.entityTypes}</ErrorText>
+            onChange={(e) => setNoEntityType(e.target.checked)} />
+          <ErrorText id={typesErrorId}>{errors.entityTypes}</ErrorText>
+          </div>
         </Question>
 
         <Question n={2} title="Mais sobre a empresa">
@@ -133,7 +182,7 @@ export function ScopeQuestions({ scope, onSaved, onCancel }: { scope: Scope; onS
           {yesNo('higherEducation', 'É uma instituição de ensino superior?')}
           {yesNo('criticalEntity', 'Foi identificada pelo Estado como entidade crítica?')}
           <div className="flex flex-col gap-1.5">
-            {yesNo('significantImpact', 'Se o vosso serviço parasse, isso afetaria seriamente a segurança, a saúde ou muitas outras empresas?')}
+            {yesNo('significantImpact', 'Se o serviço da empresa parasse, isso afetaria seriamente a segurança, a saúde ou muitas outras empresas?')}
             <p className="text-[0.8125rem] text-ink-soft">Por exemplo, ser o único fornecedor de um serviço essencial na região.</p>
           </div>
           <Field label="Balanço total do último ano (euros)" optional hint="Pode baixar a dimensão da empresa." error={errors.balanceSheet} className="max-w-[320px]">
@@ -158,7 +207,7 @@ export function ScopeQuestions({ scope, onSaved, onCancel }: { scope: Scope; onS
         <Question n={4} title="Inteligência artificial">
           {yesNo('usesAiSystems', 'A empresa usa ferramentas de IA no trabalho (por exemplo, ChatGPT ou Copilot)?')}
           {/* AI Act art. 3.º, 3): a provider offers the system under its own name "whether for payment or free of charge". */}
-          {yesNo('providesAiSystems', 'Desenvolve sistemas de IA e disponibiliza-os com o seu nome, a pagar ou de graça?')}
+          {yesNo('providesAiSystems', 'Desenvolve sistemas de IA e disponibiliza-os com o seu nome, pagos ou gratuitos?')}
           {usesOrProvidesAi && (
             <div className="flex flex-col gap-3">
               {AI_DETAILS.map(([key, label]) => (
@@ -172,6 +221,7 @@ export function ScopeQuestions({ scope, onSaved, onCancel }: { scope: Scope; onS
           <Note>
             <span className="flex flex-col items-start gap-2">
               <span>{errorMessage(save.error)}</span>
+              <span>Ao carregar, as respostas desta página são substituídas pelas que estão guardadas.</span>
               <Button variant="secondary" size="sm"
                 onClick={() => void queryClient.invalidateQueries({ queryKey: ['organization', 'scope'] })}>
                 Carregar as respostas atuais

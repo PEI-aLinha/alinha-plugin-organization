@@ -10,10 +10,10 @@ const QUESTIONS = {
   publicBody: 'A empresa é uma entidade pública?',
   higherEducation: 'É uma instituição de ensino superior?',
   criticalEntity: 'Foi identificada pelo Estado como entidade crítica?',
-  significantImpact: 'Se o vosso serviço parasse, isso afetaria seriamente a segurança, a saúde ou muitas outras empresas?',
+  significantImpact: 'Se o serviço da empresa parasse, isso afetaria seriamente a segurança, a saúde ou muitas outras empresas?',
   personalData: 'A empresa guarda ou usa dados de pessoas (clientes, trabalhadores, contactos)?',
   usesAi: 'A empresa usa ferramentas de IA no trabalho (por exemplo, ChatGPT ou Copilot)?',
-  providesAi: 'Desenvolve sistemas de IA e disponibiliza-os com o seu nome, a pagar ou de graça?',
+  providesAi: 'Desenvolve sistemas de IA e disponibiliza-os com o seu nome, pagos ou gratuitos?',
 } as const
 
 const choose = (question: string, answer: 'Sim' | 'Não') =>
@@ -157,5 +157,37 @@ describe('ScopeQuestions', () => {
 
     expect(await screen.findByText('Os dados foram alterados entretanto. Recarregue a página e volte a fazer as alterações.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Carregar as respostas atuais' })).toBeInTheDocument()
+    expect(screen.getByText('Ao carregar, as respostas desta página são substituídas pelas que estão guardadas.')).toBeInTheDocument()
+  })
+
+  it('drops a server message once its question changes', async () => {
+    const message = 'Há um tipo de entidade que não existe. Recarregue a página e escolha de novo.'
+    const api = vi.fn(async () => {
+      throw new ApiError(422, '/organization/scope/answers', undefined, {
+        code: 'VALIDATION_FAILED',
+        detail: 'Há dados por corrigir.',
+        errors: [{ field: 'nis2.entityTypes', message }],
+      })
+    }) as PluginHost['api']
+    renderQuestions(SCOPE_EMPTY, api)
+    fireEvent.click(screen.getByLabelText('Nenhum destes descreve a empresa'))
+    answerEverything()
+    submit()
+    expect(await screen.findByText(message)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText('Fabrico de veículos automóveis, reboques e semirreboques'))
+
+    expect(screen.queryByText(message)).not.toBeInTheDocument()
+  })
+
+  it('ties the entity-type message to its group and focuses it after a failed submit', () => {
+    renderQuestions()
+
+    submit()
+
+    const group = screen.getByRole('group', { name: 'Atividades da empresa' })
+    expect(group).toHaveAttribute('aria-invalid', 'true')
+    expect(group).toHaveAccessibleDescription('Escolha pelo menos um tipo, ou indique que nenhum descreve a empresa.')
+    expect(within(group).getAllByRole('checkbox')[0]).toHaveFocus()
   })
 })
