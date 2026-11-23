@@ -3,7 +3,7 @@ import { BadgeCheck, Info } from 'lucide-react'
 import type { components } from '@alinha/api-client'
 import { formatDate } from '@alinha/plugin-sdk'
 import { Badge, Button, Card, Eyebrow, Note } from '@alinha/ui'
-import { APPLIES_LABEL, FRAMEWORKS, MYCIBER_REMINDER, NIS2_LABEL, NIS2_MEANING } from './labels'
+import { APPLIES_LABEL, FRAMEWORKS, MYCIBER_REMINDER, NIS2_LABEL, NIS2_MEANING, NOT_COVERED_REMINDER } from './labels'
 import type { Scope } from './scopeForm'
 
 type Finding = components['schemas']['ApplicabilityFinding']
@@ -105,7 +105,7 @@ export function ScopeResult({ scope, canEdit, onEditAnswers, onRegisterQualifica
       </section>
 
       <Note>
-        {!official && MYCIBER_REMINDER}
+        {!official && (nis2.classification === 'not-covered' ? NOT_COVERED_REMINDER : MYCIBER_REMINDER)}
         {official && nis2.suggested && nis2.suggested !== nis2.classification
           && `A sugestão do aLinha era ${NIS2_LABEL[nis2.suggested]}. A partir de agora conta a qualificação do CNCS.`}
         {official && nis2.suggested === nis2.classification && 'A qualificação do CNCS confirma a sugestão do aLinha.'}

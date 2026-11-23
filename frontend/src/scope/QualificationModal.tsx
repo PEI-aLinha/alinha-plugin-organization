@@ -1,7 +1,8 @@
 import { useId, useState, type FormEvent } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import type { components } from '@alinha/api-client'
-import { errorMessage, fieldErrors, useApiMutation } from '@alinha/plugin-sdk'
-import { Button, Field, Modal, RadioGroup, TextInput, type RadioOption } from '@alinha/ui'
+import { ApiError, errorMessage, fieldErrors, useApiMutation } from '@alinha/plugin-sdk'
+import { Button, Field, Modal, Note, RadioGroup, TextInput, type RadioOption } from '@alinha/ui'
 import { NIS2_LABEL } from './labels'
 import type { Nis2Classification, Scope } from './scopeForm'
 
@@ -41,6 +42,7 @@ export function QualificationModal({ current, suggested, onClose }: {
   onClose: () => void
 }) {
   const formId = useId()
+  const queryClient = useQueryClient()
   const today = todayInLisbon()
   const [classification, setClassification] = useState<Official | null>(current?.classification ?? null)
   const [actDate, setActDate] = useState(current?.actDate ?? '')
@@ -60,7 +62,10 @@ export function QualificationModal({ current, suggested, onClose }: {
     ...(server.actDate && { actDate: server.actDate }),
     ...(server.actReference && { actReference: server.actReference }),
   }
-  const generalError = save.isError && !server.classification && !server.actDate && !server.actReference
+  // Someone else registered or corrected the Act since this page loaded: reloading the scope gives the modal the
+  // current qualification and version (ScopePage keys it by that version).
+  const conflict = save.error instanceof ApiError && save.error.status === 409
+  const generalError = save.isError && !conflict && !server.classification && !server.actDate && !server.actReference
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
@@ -103,6 +108,17 @@ export function QualificationModal({ current, suggested, onClose }: {
               value={reference} onChange={(e) => setReference(e.target.value)} />
           )}
         </Field>
+        {conflict && (
+          <Note>
+            <span className="flex flex-col items-start gap-2">
+              <span>{errorMessage(save.error)}</span>
+              <Button variant="secondary" size="sm"
+                onClick={() => void queryClient.invalidateQueries({ queryKey: ['organization', 'scope'] })}>
+                Carregar a qualificação atual
+              </Button>
+            </span>
+          </Note>
+        )}
         {generalError && <p role="alert" className="text-[0.8125rem] font-semibold text-danger">{errorMessage(save.error)}</p>}
       </form>
     </Modal>

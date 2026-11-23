@@ -80,9 +80,10 @@ export function ScopePage() {
       {header}
       <ScopeResult scope={data} canEdit={canEdit} onEditAnswers={() => setEditing(true)}
         onRegisterQualification={() => setQualifying(true)} />
+      {/* Keyed by version: after a conflict, the reloaded qualification starts the form again. */}
       {qualifying && (
-        <QualificationModal current={data.qualification} suggested={data.result?.nis2Classification ?? null}
-          onClose={() => setQualifying(false)} />
+        <QualificationModal key={data.qualification?.version ?? 'new'} current={data.qualification}
+          suggested={data.result?.nis2Classification ?? null} onClose={() => setQualifying(false)} />
       )}
     </>
   )

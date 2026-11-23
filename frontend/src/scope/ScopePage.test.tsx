@@ -2,7 +2,7 @@ import { fireEvent, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ApiError, type PluginHost } from '@alinha/plugin-sdk'
 import { renderWithHost } from '../test/renderWithHost'
-import { SCOPE_ANSWERED, SCOPE_EMPTY, SCOPE_OFFICIAL } from '../test/scopeFixtures'
+import { SCOPE_ANSWERED, SCOPE_EMPTY, SCOPE_NOT_COVERED, SCOPE_OFFICIAL } from '../test/scopeFixtures'
 import { MYCIBER_REMINDER, NIS2_MEANING } from './labels'
 import { ScopePage } from './ScopePage'
 import type { Scope } from './scopeForm'
@@ -54,6 +54,17 @@ describe('ScopePage', () => {
     expect(within(nis2).getByText('Indicativo')).toBeInTheDocument()
     expect(within(nis2).getByText(/é um setor abrangido e a organização é pelo menos média empresa/)).toBeInTheDocument()
     expect(screen.getByText(MYCIBER_REMINDER)).toBeInTheDocument()
+  })
+
+  it('does not tell a company that is not covered to register on MyCiber', async () => {
+    renderPage(returning(SCOPE_NOT_COVERED))
+
+    await screen.findByRole('region', { name: 'Não abrangida' })
+    expect(screen.queryByText(MYCIBER_REMINDER)).not.toBeInTheDocument()
+    expect(screen.getByText(
+      'Isto é uma sugestão. Pelas respostas dadas, a empresa não tem de se registar no CNCS. ' +
+      'Se receber um Ato de Qualificação do CNCS, registe-o aqui.',
+    )).toBeInTheDocument()
   })
 
   it('shows what the classification implies', async () => {
@@ -131,6 +142,36 @@ describe('ScopePage', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Corrigir' }))
 
     expect(screen.getByRole('dialog', { name: 'Corrigir qualificação oficial' })).toBeInTheDocument()
+  })
+
+  it('after a conflict, loads the qualification someone else registered into the form', async () => {
+    // Someone else registered the Act after this page loaded: the server now has SCOPE_OFFICIAL.
+    let onServer: Scope = SCOPE_ANSWERED
+    const api = vi.fn(async (path: string, init?: RequestInit) => {
+      if (init?.method === 'PUT') {
+        throw new ApiError(409, path, undefined, {
+          code: 'VERSION_CONFLICT',
+          detail: 'Os dados foram alterados entretanto. Recarregue a página e volte a fazer as alterações.',
+        })
+      }
+      return onServer
+    }) as unknown as PluginHost['api']
+    renderPage(api)
+    fireEvent.click(await screen.findByRole('button', { name: 'Registar qualificação oficial' }))
+    onServer = SCOPE_OFFICIAL
+
+    const form = screen.getByRole('dialog', { name: 'Registar qualificação oficial' })
+    fireEvent.click(within(within(form).getByRole('group', { name: /Classificação atribuída pelo CNCS/ })).getByLabelText('Entidade importante'))
+    fireEvent.change(within(form).getByLabelText('Data do Ato de Qualificação'), { target: { value: '2026-01-10' } })
+    fireEvent.click(within(form).getByRole('button', { name: 'Registar qualificação' }))
+    expect(await within(form).findByText('Os dados foram alterados entretanto. Recarregue a página e volte a fazer as alterações.')).toBeInTheDocument()
+
+    fireEvent.click(within(form).getByRole('button', { name: 'Carregar a qualificação atual' }))
+
+    const correction = await screen.findByRole('dialog', { name: 'Corrigir qualificação oficial' })
+    expect(within(correction).getByLabelText('Data do Ato de Qualificação')).toHaveValue('2026-01-15')
+    expect(within(correction).getByLabelText(/Referência do Ato/)).toHaveValue('CNCS/QA/2026/0042')
+    expect(within(correction).queryByText(/Os dados foram alterados entretanto/)).not.toBeInTheDocument()
   })
 
   it('hides the qualification and answer buttons from readers', async () => {

@@ -85,6 +85,40 @@ export const SCOPE_ANSWERED: Scope = {
   entityTypes: ENTITY_TYPES,
 }
 
+/** A small food distributor (30 employees): its sector is covered by NIS2, but small companies are not. */
+export const SCOPE_NOT_COVERED: Scope = {
+  ...SCOPE_ANSWERED,
+  answers: {
+    ...SCOPE_ANSWERED.answers!,
+    nis2: { entityTypes: ['FOOD'], criticalEntity: false, significantImpact: false, higherEducation: false },
+  },
+  result: {
+    rulesVersion: 'applicability-2026.11-v1',
+    size: 'small',
+    nis2Classification: 'not-covered',
+    cncsMayQualify: false,
+    indicative: true,
+    frameworks: [
+      {
+        framework: 'nis2-qnrcs',
+        applies: 'no',
+        findings: [
+          {
+            id: 'nis2.size.small', legalBasis: 'RJC, anexo III, art. 2.º (Recomendação 2003/361/CE)', review: false,
+            explanation: 'Pelo número de trabalhadores e pelo volume de negócios ou balanço, a organização é pequena empresa.',
+          },
+          {
+            id: 'nis2.not_covered.small', legalBasis: 'RJC, art. 3.º, n.º 1, alínea a)', review: false,
+            explanation: 'Distribuição por grosso, produção ou transformação industrial de produtos alimentares: o setor é abrangido, mas as micro e pequenas empresas ficam de fora.',
+          },
+        ],
+      },
+      ...SCOPE_ANSWERED.result!.frameworks.slice(1),
+    ],
+  },
+  nis2: { classification: 'not-covered', official: false, suggested: 'not-covered' },
+}
+
 /** The CNCS qualified the organization as essential, above the suggestion. */
 export const SCOPE_OFFICIAL: Scope = {
   ...SCOPE_ANSWERED,

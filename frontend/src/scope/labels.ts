@@ -62,6 +62,14 @@ export const MYCIBER_REMINDER =
   'Isto é uma sugestão. A qualificação oficial é atribuída pelo CNCS depois de a empresa se registar na plataforma ' +
   'MyCiber. Quando a receber, registe-a aqui.'
 
+/**
+ * Instead of [MYCIBER_REMINDER] when the suggestion is "not covered": such a company does not register on MyCiber,
+ * but the CNCS may still qualify it (RJC art. 3.º n.º 2), so the Act can still be registered.
+ */
+export const NOT_COVERED_REMINDER =
+  'Isto é uma sugestão. Pelas respostas dadas, a empresa não tem de se registar no CNCS. ' +
+  'Se receber um Ato de Qualificação do CNCS, registe-o aqui.'
+
 /** Plain-language title of each section of annexes I and II, keyed by `annexSection(reference)`. */
 export const SECTION_TITLE: Record<string, string> = {
   'Anexo I, 1.': 'Energia',
