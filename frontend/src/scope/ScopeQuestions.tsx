@@ -157,7 +157,8 @@ export function ScopeQuestions({ scope, onSaved, onCancel }: { scope: Scope; onS
 
         <Question n={4} title="Inteligência artificial">
           {yesNo('usesAiSystems', 'A empresa usa ferramentas de IA no trabalho (por exemplo, ChatGPT ou Copilot)?')}
-          {yesNo('providesAiSystems', 'Desenvolve sistemas de IA e vende-os com o seu nome?')}
+          {/* AI Act art. 3.º, 3): a provider offers the system under its own name "whether for payment or free of charge". */}
+          {yesNo('providesAiSystems', 'Desenvolve sistemas de IA e disponibiliza-os com o seu nome, a pagar ou de graça?')}
           {usesOrProvidesAi && (
             <div className="flex flex-col gap-3">
               {AI_DETAILS.map(([key, label]) => (

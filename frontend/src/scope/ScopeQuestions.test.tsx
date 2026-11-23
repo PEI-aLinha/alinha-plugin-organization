@@ -13,7 +13,7 @@ const QUESTIONS = {
   significantImpact: 'Se o vosso serviço parasse, isso afetaria seriamente a segurança, a saúde ou muitas outras empresas?',
   personalData: 'A empresa guarda ou usa dados de pessoas (clientes, trabalhadores, contactos)?',
   usesAi: 'A empresa usa ferramentas de IA no trabalho (por exemplo, ChatGPT ou Copilot)?',
-  providesAi: 'Desenvolve sistemas de IA e vende-os com o seu nome?',
+  providesAi: 'Desenvolve sistemas de IA e disponibiliza-os com o seu nome, a pagar ou de graça?',
 } as const
 
 const choose = (question: string, answer: 'Sim' | 'Não') =>
