@@ -14,11 +14,13 @@ permissions:
 
 jobs:
   ci:
-    uses: PEI-aLinha/alinha/.github/workflows/plugin-ci.yml@main
+    # Coordinated change with PEI-aLinha/alinha#161 (contract): back to main once it merges.
+    uses: PEI-aLinha/alinha/.github/workflows/plugin-ci.yml@feat/4-nis2-scope
     with:
       plugin-path: plugins/feature/organization
       gradle-project: organization
       npm-package: "@alinha/plugin-organization"
+      main-ref: feat/4-nis2-scope
     secrets:
       ALINHA_READ_TOKEN: ${{ secrets.ALINHA_READ_TOKEN }}   # private repos only
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

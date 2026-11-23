@@ -77,4 +77,11 @@ describe('OrganizationPage', () => {
     expect(screen.getByText('12 000')).toBeInTheDocument()
     expect(api).toHaveBeenCalledWith('/organization/profile', expect.objectContaining({ signal: expect.any(AbortSignal) }))
   })
+
+  it('links to the regulatory scope', async () => {
+    renderPage(vi.fn(async () => PROFILE) as unknown as PluginHost['api'])
+
+    const link = await screen.findByRole('link', { name: 'Ver o âmbito regulatório' })
+    expect(link.getAttribute('href')).toMatch(/\/scope$/)
+  })
 })

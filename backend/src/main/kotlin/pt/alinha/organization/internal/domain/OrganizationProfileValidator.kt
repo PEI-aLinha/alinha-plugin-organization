@@ -6,8 +6,6 @@ private const val MIN_SERVICES_LENGTH = 10
 private val POSTAL_CODE = Regex("""^\d{4}-\d{3}$""")
 private val PHONE = Regex("""^[29]\d{8}$""")
 private val WHITESPACE = Regex("""\s""")
-/** Control characters (Unicode Cc: tabs, line breaks, NUL, escape, C1) together with the spaces around them. */
-private val CONTROL_OR_SPACE = Regex("""[\p{Cc}\s]+""")
 /** Control characters other than the line break. */
 private val CONTROL_BUT_NEWLINE = Regex("""[\p{Cc}&&[^\n]]""")
 /** NIF, CAE and phones may be typed with spaces, dots or dashes, never letters or non-ASCII digits. */
@@ -171,12 +169,6 @@ object OrganizationProfileValidator {
             ),
         )
     }
-
-    /**
-     * One-line text: control characters (line breaks included) become a space, runs of spaces become one, and the
-     * ends are trimmed. These fields end up in reports, where a stray line break or escape code breaks the layout.
-     */
-    private fun String?.singleLine(): String = this.orEmpty().replace(CONTROL_OR_SPACE, " ").trim()
 
     /** Multi-line text: line breaks are kept (as `\n`), other control characters removed, the ends trimmed. */
     private fun String?.multiLine(): String = this.orEmpty().replace("\r\n", "\n").replace(CONTROL_BUT_NEWLINE, "").trim()

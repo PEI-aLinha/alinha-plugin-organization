@@ -19,6 +19,7 @@ import pt.alinha.core.access.internal.RolePermissionRegistry
 import pt.alinha.core.access.internal.SecurityConfig
 import pt.alinha.core.audit.internal.AuditActor
 import pt.alinha.core.audit.internal.JpaAuditTrail
+import pt.alinha.core.compliance.ApplicabilityRules
 import pt.alinha.core.registry.PluginRegistry
 import pt.alinha.core.tenant.internal.CorrelationIdFilter
 import pt.alinha.core.tenant.internal.HibernateTenantResolver
@@ -33,6 +34,7 @@ import pt.alinha.organization.OrganizationPlugin
 import pt.alinha.organization.internal.persistence.OrganizationProfileRepository
 import pt.alinha.organization.internal.web.OrganizationController
 import pt.alinha.organization.internal.web.OrganizationProblems
+import pt.alinha.organization.internal.web.ScopeController
 import pt.alinha.pluginapi.TenantId
 import java.util.Collections
 
@@ -64,6 +66,7 @@ class FakeIdentityDirectory : IdentityDirectory {
     TenantWebConfig::class, TenantResolutionInterceptor::class, JwtTenantContext::class,
     HibernateTenantResolver::class, CorrelationIdFilter::class, ScopedCorrelationContext::class, TenantProvisioner::class, RegistrationRateLimiter::class, AuditActor::class, JpaAuditTrail::class,
     OrganizationPlugin::class, OrganizationService::class, OrganizationController::class, OrganizationProblems::class,
+    ApplicabilityRules::class, ScopeService::class, ScopeController::class,
 )
 class OrganizationTestApplication {
     @Bean

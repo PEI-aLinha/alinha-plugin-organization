@@ -2,6 +2,7 @@ import { definePlugin } from '@alinha/plugin-sdk'
 import { Building2 } from 'lucide-react'
 import { OrganizationPage } from './pages/OrganizationPage'
 import { RegistrationWizard } from './registration/RegistrationWizard'
+import { ScopePage } from './scope/ScopePage'
 
 /**
  * The plugin's frontend entry point. The shell reads this object and mounts
@@ -21,6 +22,7 @@ export default definePlugin({
     ],
     client: [
       { path: 'organization', handle: { title: 'Organização' }, Component: OrganizationPage },
+      { path: 'organization/scope', handle: { title: 'Âmbito regulatório' }, Component: ScopePage },
     ],
   },
   nav: [

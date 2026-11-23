@@ -35,6 +35,7 @@ class OrganizationService(
     private val audit: AuditTrail,
     private val events: ApplicationEventPublisher,
     private val correlation: CorrelationContext,
+    private val scope: ScopeService,
 ) : OrganizationApi {
 
     /**
@@ -77,10 +78,14 @@ class OrganizationService(
         if (profile.nif != entity.nif) {
             throw InvalidOrganizationException(listOf(FieldError("nif", "O NIF não pode ser alterado depois do registo.")))
         }
+        val employeesBefore = entity.employees
+        val turnoverBefore = entity.turnover
         val changed = entity.update(profile, Instant.now())
         if (changed.isEmpty()) return entity.toView()
         val saved = save(entity)
         audit.record("organization.updated", ENTITY_TYPE, saved.id.toString(), mapOf("changed" to changed))
+        // The size decides the indicative NIS2 classification: say so when it changes it.
+        scope.recordSizeChange(employeesBefore, turnoverBefore, saved)
         return saved.toView()
     }
 
