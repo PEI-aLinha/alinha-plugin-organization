@@ -124,13 +124,14 @@ class ConsultantAssignmentIntegrationTest {
     @Test
     fun `nothing is published when the organization already had a consultant or none exists`() {
         assignment.answer = { AssignedConsultant("consultant-sub", newlyAssigned = false) }
-        register()
+        val (first, _) = register()
+        listenerFinished(1) // the first listener must read its answer before the next one is set
         assignment.answer = { null }
-        register()
-
+        val (second, _) = register()
         listenerFinished(2)
 
-        assertThat(assignment.calls).hasSize(2)
+        // Each registration asks under its own tenant.
+        assertThat(assignment.calls.map { it.tenant.value }).containsExactly(first, second)
         assertThat(published.events).isEmpty()
     }
 
