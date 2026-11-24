@@ -26,6 +26,8 @@ data class OrganizationProfile(
     val address: Address,
     val contacts: Contacts,
     val permanentContact: PermanentContact,
+    /** The organization's own internet domain ([DomainName]), or null when not given. */
+    val domain: String? = null,
 )
 
 /** What the client sends, before validation. Every field may be missing. */
@@ -41,6 +43,7 @@ data class OrganizationProfileInput(
     val address: AddressInput? = null,
     val contacts: ContactsInput? = null,
     val permanentContact: PermanentContactInput? = null,
+    val domain: String? = null,
 )
 
 data class AddressInput(val street: String? = null, val postalCode: String? = null, val city: String? = null)

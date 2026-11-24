@@ -34,13 +34,18 @@ import java.util.UUID
 private const val REGISTRATION = "/api/organization/registration"
 private const val PROFILE = "/api/organization/profile"
 
-private fun body(nif: String = "509180027", name: String = "Componentes Águeda, Lda.", version: Long? = null) = """
+private fun body(
+    nif: String = "509180027",
+    name: String = "Componentes Águeda, Lda.",
+    version: Long? = null,
+    domain: String? = null,
+) = """
     {${version?.let { "\"version\": $it," } ?: ""}
      "name": "$name", "nif": "$nif", "cae": "29320", "sector": "industria", "subsector": "automoveis",
      "services": "Fabrico de componentes para a indústria automóvel.", "employees": 120, "turnover": 18500000,
      "address": {"street": "Rua da Zona Industrial, 45", "postalCode": "3750-750", "city": "Águeda"},
      "contacts": {"phone": "234600120", "email": "geral@compagueda.pt"},
-     "permanentContact": {"name": "Rui Santos", "phone": "912345678"}}
+     "permanentContact": {"name": "Rui Santos", "phone": "912345678"}${domain?.let { ", \"domain\": \"$it\"" } ?: ""}}
 """.trimIndent()
 
 @SpringBootTest(classes = [OrganizationTestApplication::class])
@@ -285,6 +290,42 @@ class OrganizationIntegrationTest {
             String::class.java, tenant,
         )
         assertThat(details).contains("\"changed\"").contains("\"name\"").doesNotContain("S.A.")
+    }
+
+    @Test
+    fun `the domain is saved normalised, read back and recorded as changed`() {
+        val tenant = registered()
+
+        mvc.put(PROFILE) {
+            header("Authorization", "Bearer responsible.$sub.$tenant")
+            contentType = MediaType.APPLICATION_JSON
+            content = body(nif = currentNif(tenant), version = 0, domain = "https://www.CompAgueda.pt/")
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.domain") { value("compagueda.pt") }
+        }
+        mvc.get(PROFILE) { header("Authorization", "Bearer responsible.$sub.$tenant") }
+            .andExpect { jsonPath("$.domain") { value("compagueda.pt") } }
+
+        val details = jdbc.queryForObject(
+            "select details::text from audit.audit_event where tenant_id = ?::uuid and action = 'organization.updated'",
+            String::class.java, tenant,
+        )
+        assertThat(details).contains("\"domain\"").doesNotContain("compagueda.pt")
+    }
+
+    @Test
+    fun `a shared domain is a 422 on its field`() {
+        val tenant = registered()
+
+        mvc.put(PROFILE) {
+            header("Authorization", "Bearer responsible.$sub.$tenant")
+            contentType = MediaType.APPLICATION_JSON
+            content = body(nif = currentNif(tenant), version = 0, domain = "gmail.com")
+        }.andExpect {
+            status { isUnprocessableEntity() }
+            jsonPath("$.errors[0].field") { value("domain") }
+        }
     }
 
     @Test

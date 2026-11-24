@@ -129,6 +129,7 @@ internal fun OrganizationProfileEntity.toView() = OrganizationProfileView(
     address = AddressView(street, postalCode, city),
     contacts = ContactsView(phone, email),
     permanentContact = PermanentContactView(permanentContactName, permanentContactPhone),
+    domain = domain,
     registeredAt = registeredAt,
     updatedAt = updatedAt,
 )
