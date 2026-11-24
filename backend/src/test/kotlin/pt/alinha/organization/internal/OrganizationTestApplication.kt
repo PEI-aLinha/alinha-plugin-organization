@@ -74,6 +74,7 @@ class FakeConsultantAssignment(private val tenants: TenantContext) : ConsultantA
 
     override fun assignConsultant(): AssignedConsultant? {
         val inTransaction = TransactionSynchronizationManager.isActualTransactionActive()
+        FinishedAsyncTasks.assignmentOnThisThread.set(true)
         calls += Call(tenants.current(), inTransaction)
         if (inTransaction) {
             TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
@@ -87,10 +88,16 @@ class FakeConsultantAssignment(private val tenants: TenantContext) : ConsultantA
 }
 
 /**
- * Counts finished @Async tasks (Boot applies a TaskDecorator bean to the executor @EnableAsync uses), so a test can
- * wait for the listener to end instead of sleeping before it asserts that nothing was published.
+ * Counts finished @Async tasks that asked for a consultant, i.e. runs of the assignment listener, publish step
+ * included (Boot applies a TaskDecorator bean to the executor @EnableAsync uses). A test waits for them instead of
+ * sleeping before it asserts that nothing was published; other async tasks are not counted.
  */
 class FinishedAsyncTasks : TaskDecorator {
+    companion object {
+        /** Set by [FakeConsultantAssignment] on the thread that runs the listener. */
+        val assignmentOnThisThread: ThreadLocal<Boolean> = ThreadLocal.withInitial { false }
+    }
+
     private val finished = AtomicInteger()
 
     fun count(): Int = finished.get()
@@ -99,7 +106,8 @@ class FinishedAsyncTasks : TaskDecorator {
         try {
             runnable.run()
         } finally {
-            finished.incrementAndGet()
+            if (assignmentOnThisThread.get()) finished.incrementAndGet()
+            assignmentOnThisThread.remove()
         }
     }
 }
