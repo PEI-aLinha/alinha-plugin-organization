@@ -5,6 +5,7 @@ import type { ApiResponse } from '@alinha/api-client'
 import { ApiError, formatNumber, useApiQuery } from '@alinha/plugin-sdk'
 import { Card, EmptyState, ErrorState, PageHeader, SkeletonRows, buttonClass } from '@alinha/ui'
 import { sectorLabel } from '../registration/sectors'
+import { DomainEditor } from './DomainEditor'
 
 type OrganizationProfile = NonNullable<ApiResponse<'/api/organization/profile'>>
 
@@ -72,6 +73,9 @@ function ProfileCard({ profile }: { profile: OrganizationProfile }) {
           {permanentContact.name}
           <br />
           {permanentContact.phone}
+        </Field>
+        <Field label="Domínio (site e email)">
+          <DomainEditor profile={profile} />
         </Field>
       </dl>
     </Card>

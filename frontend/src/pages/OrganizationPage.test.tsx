@@ -22,6 +22,7 @@ const PROFILE: OrganizationProfile = {
   address: { street: 'Rua da Zona Industrial do Casarão, 45', postalCode: '3750-750', city: 'Águeda' },
   contacts: { phone: '234600120', email: 'geral@compagueda.pt' },
   permanentContact: { name: 'Rui Santos', phone: '912345678' },
+  domain: null,
   registeredAt: '2026-11-01T10:00:00Z',
   updatedAt: '2026-11-01T10:00:00Z',
 }
@@ -83,5 +84,56 @@ describe('OrganizationPage', () => {
 
     const link = await screen.findByRole('link', { name: 'Ver o âmbito regulatório' })
     expect(link.getAttribute('href')).toMatch(/\/scope$/)
+  })
+
+  it('lets an editor give the domain, sending the whole profile with it', async () => {
+    const api = vi.fn(async (_path: string, init?: RequestInit) =>
+      init?.method === 'PUT' ? { ...PROFILE, version: 2, domain: 'compagueda.pt' } : PROFILE,
+    ) as unknown as PluginHost['api']
+    renderPage(api)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Indicar o domínio' }))
+    fireEvent.change(screen.getByLabelText(/Domínio da organização/), { target: { value: 'https://www.CompAgueda.pt/' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
+
+    await vi.waitFor(() => expect(api).toHaveBeenCalledWith('/organization/profile', expect.objectContaining({ method: 'PUT' })))
+    const put = (api as unknown as ReturnType<typeof vi.fn>).mock.calls.find(([, init]) => init?.method === 'PUT')
+    expect(JSON.parse(put?.[1]?.body as string)).toMatchObject({ version: 1, nif: '509180027', domain: 'compagueda.pt' })
+  })
+
+  it('refuses something that is not a domain without calling the server', async () => {
+    const api = vi.fn(async () => PROFILE) as unknown as PluginHost['api']
+    renderPage(api)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Indicar o domínio' }))
+    fireEvent.change(screen.getByLabelText(/Domínio da organização/), { target: { value: '10.0.0.1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
+
+    expect(await screen.findByText('Indique só o domínio, por exemplo empresa.pt.')).toBeInTheDocument()
+    expect(api).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows the server message for a shared domain', async () => {
+    const api = vi.fn(async (_path: string, init?: RequestInit) => {
+      if (init?.method !== 'PUT') return PROFILE
+      throw new ApiError(422, '/organization/profile', undefined, {
+        errors: [{ field: 'domain', message: 'Este domínio é de um serviço partilhado.' }],
+      })
+    }) as unknown as PluginHost['api']
+    renderPage(api)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Indicar o domínio' }))
+    fireEvent.change(screen.getByLabelText(/Domínio da organização/), { target: { value: 'gmail.com' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
+
+    expect(await screen.findByText('Este domínio é de um serviço partilhado.')).toBeInTheDocument()
+  })
+
+  it('shows the domain without a change link to someone who cannot edit', async () => {
+    const api = vi.fn(async () => ({ ...PROFILE, domain: 'compagueda.pt' })) as unknown as PluginHost['api']
+    renderWithHost(<OrganizationPage />, { host: { api, can: () => false } })
+
+    expect(await screen.findByText('compagueda.pt')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /domínio/ })).not.toBeInTheDocument()
   })
 })
