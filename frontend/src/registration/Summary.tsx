@@ -1,5 +1,6 @@
 import { Button, Card } from '@alinha/ui'
 import { digits, type OrganizationForm, type StepId } from './organizationForm'
+import { normalizeDomain } from './domain'
 import { sectorLabel } from './sectors'
 
 const formatNif = (nif: string) => digits(nif).replace(/^(\d{3})(\d{3})(\d{3})$/, '$1 $2 $3')
@@ -22,6 +23,7 @@ export function Summary({ form, onEdit }: SummaryProps) {
         ['Sede', `${form.address.trim()}, ${form.postalCode.trim()} ${form.city.trim()}`],
         ['Telefone', digits(form.phone)],
         ['Email', form.email.trim().toLowerCase()],
+        ['Domínio', form.domain.trim() ? normalizeDomain(form.domain) ?? form.domain.trim() : 'Não indicado'],
         ['Contacto permanente', `${form.contactName.trim()} · ${digits(form.contactPhone)}`],
       ],
     },
