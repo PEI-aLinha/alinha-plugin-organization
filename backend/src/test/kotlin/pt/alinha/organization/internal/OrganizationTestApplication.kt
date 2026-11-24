@@ -9,10 +9,12 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
 import org.springframework.context.annotation.Primary
 import org.springframework.context.event.EventListener
+import org.springframework.core.task.TaskDecorator
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories
 import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.security.oauth2.jwt.JwtDecoder
 import org.springframework.test.context.DynamicPropertyRegistry
+import org.springframework.transaction.support.TransactionSynchronization
 import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.testcontainers.postgresql.PostgreSQLContainer
 import pt.alinha.core.access.internal.AccessWebConfig
@@ -44,6 +46,7 @@ import pt.alinha.organization.internal.web.OrganizationProblems
 import pt.alinha.organization.internal.web.ScopeController
 import pt.alinha.pluginapi.TenantId
 import java.util.Collections
+import java.util.concurrent.atomic.AtomicInteger
 
 /** Records assignments instead of calling Keycloak; can be told to fail. */
 class FakeIdentityDirectory : IdentityDirectory {
@@ -58,16 +61,46 @@ class FakeIdentityDirectory : IdentityDirectory {
     override fun revokeTenant(subject: String, tenantId: TenantId) = Unit
 }
 
-/** Stands in for the core's assignment (tested in the core): records each call's tenant; the answer can be set. */
+/**
+ * Stands in for the core's assignment (tested in the core): records each call's tenant and how its transaction ended
+ * (TransactionSynchronization.STATUS_*); the answer can be set.
+ */
 class FakeConsultantAssignment(private val tenants: TenantContext) : ConsultantAssignment {
     val calls: MutableList<Call> = Collections.synchronizedList(mutableListOf())
+    val transactionOutcomes: MutableList<Int> = Collections.synchronizedList(mutableListOf())
     @Volatile var answer: () -> AssignedConsultant? = { AssignedConsultant("consultant-sub", newlyAssigned = true) }
 
     data class Call(val tenant: TenantId, val inTransaction: Boolean)
 
     override fun assignConsultant(): AssignedConsultant? {
-        calls += Call(tenants.current(), TransactionSynchronizationManager.isActualTransactionActive())
+        val inTransaction = TransactionSynchronizationManager.isActualTransactionActive()
+        calls += Call(tenants.current(), inTransaction)
+        if (inTransaction) {
+            TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
+                override fun afterCompletion(status: Int) {
+                    transactionOutcomes += status
+                }
+            })
+        }
         return answer()
+    }
+}
+
+/**
+ * Counts finished @Async tasks (Boot applies a TaskDecorator bean to the executor @EnableAsync uses), so a test can
+ * wait for the listener to end instead of sleeping before it asserts that nothing was published.
+ */
+class FinishedAsyncTasks : TaskDecorator {
+    private val finished = AtomicInteger()
+
+    fun count(): Int = finished.get()
+
+    override fun decorate(runnable: Runnable) = Runnable {
+        try {
+            runnable.run()
+        } finally {
+            finished.incrementAndGet()
+        }
     }
 }
 
@@ -108,6 +141,9 @@ class OrganizationTestApplication {
 
     @Bean
     fun consultantAssignedEvents() = ConsultantAssignedCollector()
+
+    @Bean
+    fun finishedAsyncTasks() = FinishedAsyncTasks()
 
     /** The provisioner requires one (its orphan metric must be exported); the app gets it from Actuator. */
     @Bean

@@ -1,19 +1,28 @@
 package pt.alinha.organization.internal
 
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.http.MediaType
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.post
+import org.springframework.transaction.support.TransactionSynchronization
+import org.springframework.transaction.support.TransactionTemplate
 import pt.alinha.core.tenant.AssignedConsultant
+import pt.alinha.core.tenant.CorrelationContext
+import pt.alinha.core.tenant.TenantContext
+import pt.alinha.organization.events.OrganizationRegistered
+import pt.alinha.pluginapi.TenantId
 import java.util.UUID
+import java.util.concurrent.CompletableFuture
 
 /**
  * organization#5: after a registration commits, the listener asks the core for a consultant as the new tenant and
@@ -36,11 +45,21 @@ class ConsultantAssignmentIntegrationTest {
     @Autowired private lateinit var identity: FakeIdentityDirectory
     @Autowired private lateinit var assignment: FakeConsultantAssignment
     @Autowired private lateinit var published: ConsultantAssignedCollector
+    @Autowired private lateinit var asyncTasks: FinishedAsyncTasks
+    @Autowired private lateinit var tenants: TenantContext
+    @Autowired private lateinit var tx: TransactionTemplate
+    @Autowired private lateinit var publisher: ApplicationEventPublisher
+    @Autowired private lateinit var correlation: CorrelationContext
+
+    /** Async tasks finished before this test's registrations (each test waits for its own). */
+    private var finishedBefore = 0
 
     @BeforeEach
     fun reset() {
+        finishedBefore = asyncTasks.count()
         identity.assigned.clear()
         assignment.calls.clear()
+        assignment.transactionOutcomes.clear()
         assignment.answer = { AssignedConsultant("consultant-sub", newlyAssigned = true) }
         published.events.clear()
     }
@@ -80,11 +99,14 @@ class ConsultantAssignmentIntegrationTest {
         }
     }
 
+    /** Waits until the listener has run for [registrations] organizations, publish step included. */
+    private fun listenerFinished(registrations: Int) = eventually { asyncTasks.count() - finishedBefore >= registrations }
+
     @Test
     fun `a new organization asks the core for a consultant and publishes ConsultantAssigned`() {
         val (tenant, correlationId) = register()
 
-        eventually { published.events.isNotEmpty() }
+        listenerFinished(1)
 
         val call = assignment.calls.single()
         assertThat(call.tenant.value).isEqualTo(tenant)
@@ -106,23 +128,41 @@ class ConsultantAssignmentIntegrationTest {
         assignment.answer = { null }
         register()
 
-        eventually { assignment.calls.size == 2 }
-        Thread.sleep(200) // a publication would follow the call on the same thread
+        listenerFinished(2)
 
+        assertThat(assignment.calls).hasSize(2)
         assertThat(published.events).isEmpty()
     }
 
     @Test
-    fun `a failed assignment does not undo the registration`() {
+    fun `a failed assignment rolls back and does not undo the registration`() {
         assignment.answer = { error("identity provider down") }
 
         val (tenant, _) = register()
-        eventually { assignment.calls.isNotEmpty() }
-        Thread.sleep(200)
+        listenerFinished(1)
 
+        assertThat(assignment.transactionOutcomes).containsExactly(TransactionSynchronization.STATUS_ROLLED_BACK)
         assertThat(published.events).isEmpty()
         assertThat(
             jdbc.queryForObject("select count(*) from organization.organization_profile where tenant_id = ?", Long::class.java, tenant),
         ).isEqualTo(1)
+    }
+
+    @Test
+    fun `the listener rethrows a failed assignment, so its event publication stays incomplete`() {
+        val (tenant, _) = register()
+        listenerFinished(1)
+        val organizationId = jdbc.queryForObject(
+            "select id from organization.organization_profile where tenant_id = ?", UUID::class.java, tenant,
+        )!!
+        assignment.answer = { error("identity provider down") }
+
+        // Called without the @Async proxy, to see what the event publication registry would see. On another thread:
+        // MockMvc leaves its request bound to this one, and runAs refuses to run inside a request.
+        val listener = ConsultantAssignmentListener(tenants, tx, assignment, publisher, correlation)
+        val run = CompletableFuture.runAsync {
+            listener.on(OrganizationRegistered(TenantId(tenant), UUID.randomUUID(), organizationId))
+        }
+        assertThatThrownBy { run.join() }.hasRootCauseMessage("identity provider down")
     }
 }
