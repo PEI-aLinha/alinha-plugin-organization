@@ -23,3 +23,16 @@ data class OrganizationRegistered(
     val organizationId: UUID,
     override val occurredAt: Instant = Instant.now(),
 ) : DomainEvent
+
+/**
+ * The new organization was given a consultant (FR04, organization#5), who can open it once their token is refreshed
+ * (ADR 0002). Published once per organization, only when the assignment was made by the platform. [consultantId]
+ * is the consultant's token `sub`: a consumer that needs a name or an email asks the core, never the event.
+ */
+data class ConsultantAssigned(
+    override val tenantId: TenantId,
+    override val correlationId: UUID,
+    val organizationId: UUID,
+    val consultantId: String,
+    override val occurredAt: Instant = Instant.now(),
+) : DomainEvent

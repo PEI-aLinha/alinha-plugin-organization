@@ -8,10 +8,12 @@ import org.springframework.boot.persistence.autoconfigure.EntityScan
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
 import org.springframework.context.annotation.Primary
+import org.springframework.context.event.EventListener
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories
 import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.security.oauth2.jwt.JwtDecoder
 import org.springframework.test.context.DynamicPropertyRegistry
+import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.testcontainers.postgresql.PostgreSQLContainer
 import pt.alinha.core.access.internal.AccessWebConfig
 import pt.alinha.core.access.internal.RequiresPermissionInterceptor
@@ -23,6 +25,7 @@ import pt.alinha.core.compliance.ApplicabilityRules
 import pt.alinha.core.registry.PluginRegistry
 import pt.alinha.core.tenant.internal.CorrelationIdFilter
 import pt.alinha.core.tenant.internal.HibernateTenantResolver
+import pt.alinha.core.tenant.internal.AsyncListenersConfig
 import pt.alinha.core.tenant.internal.IdentityDirectory
 import pt.alinha.core.tenant.internal.JwtTenantContext
 import pt.alinha.core.tenant.internal.RegistrationRateLimiter
@@ -30,7 +33,11 @@ import pt.alinha.core.tenant.internal.ScopedCorrelationContext
 import pt.alinha.core.tenant.internal.TenantProvisioner
 import pt.alinha.core.tenant.internal.TenantResolutionInterceptor
 import pt.alinha.core.tenant.internal.TenantWebConfig
+import pt.alinha.core.tenant.AssignedConsultant
+import pt.alinha.core.tenant.ConsultantAssignment
+import pt.alinha.core.tenant.TenantContext
 import pt.alinha.organization.OrganizationPlugin
+import pt.alinha.organization.events.ConsultantAssigned
 import pt.alinha.organization.internal.persistence.OrganizationProfileRepository
 import pt.alinha.organization.internal.web.OrganizationController
 import pt.alinha.organization.internal.web.OrganizationProblems
@@ -51,6 +58,29 @@ class FakeIdentityDirectory : IdentityDirectory {
     override fun revokeTenant(subject: String, tenantId: TenantId) = Unit
 }
 
+/** Stands in for the core's assignment (tested in the core): records each call's tenant; the answer can be set. */
+class FakeConsultantAssignment(private val tenants: TenantContext) : ConsultantAssignment {
+    val calls: MutableList<Call> = Collections.synchronizedList(mutableListOf())
+    @Volatile var answer: () -> AssignedConsultant? = { AssignedConsultant("consultant-sub", newlyAssigned = true) }
+
+    data class Call(val tenant: TenantId, val inTransaction: Boolean)
+
+    override fun assignConsultant(): AssignedConsultant? {
+        calls += Call(tenants.current(), TransactionSynchronizationManager.isActualTransactionActive())
+        return answer()
+    }
+}
+
+/** Collects [ConsultantAssigned], which is published on the listener's thread (ApplicationEvents only sees the test's). */
+class ConsultantAssignedCollector {
+    val events: MutableList<ConsultantAssigned> = Collections.synchronizedList(mutableListOf())
+
+    @EventListener
+    fun on(event: ConsultantAssigned) {
+        events += event
+    }
+}
+
 /**
  * The plugin with the core's real RBAC, tenant resolution, provisioning and audit trail on PostgreSQL. Only the JWT
  * decoder and the identity provider are fakes. Token value: `<role>.<sub>[.<tenant>]` (a colon is not allowed in a Bearer token); a consultant's tenant is
@@ -67,10 +97,17 @@ class FakeIdentityDirectory : IdentityDirectory {
     HibernateTenantResolver::class, CorrelationIdFilter::class, ScopedCorrelationContext::class, TenantProvisioner::class, RegistrationRateLimiter::class, AuditActor::class, JpaAuditTrail::class,
     OrganizationPlugin::class, OrganizationService::class, OrganizationController::class, OrganizationProblems::class,
     ApplicabilityRules::class, ScopeService::class, ScopeController::class,
+    AsyncListenersConfig::class, ConsultantAssignmentListener::class,
 )
 class OrganizationTestApplication {
     @Bean
     fun identityDirectory() = FakeIdentityDirectory()
+
+    @Bean
+    fun consultantAssignment(tenants: TenantContext) = FakeConsultantAssignment(tenants)
+
+    @Bean
+    fun consultantAssignedEvents() = ConsultantAssignedCollector()
 
     /** The provisioner requires one (its orphan metric must be exported); the app gets it from Actuator. */
     @Bean
