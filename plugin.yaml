@@ -5,14 +5,20 @@ kind: feature
 version: 0.1.0
 # Where this repo lives as a submodule inside the main repo (PEI-aLinha/alinha)
 path: plugins/feature/organization
-publishes: [OrganizationRegistered]     # events it publishes
+publishes: [OrganizationRegistered, TaskAssigned, TaskCompleted]     # events it publishes
 consumes: []      # events it consumes
 permissions:      # RBAC resources; role mapping lives in OrganizationPlugin.kt
   - organization:register   # registrant: create the organization (ADR 0004)
   - organization:read       # responsible, consultant, analyst
   - organization:edit       # responsible, consultant
+  - task:read               # responsible, analyst: their own tasks (organization#7)
 nav:              # menu entries; GET /api/plugins shows each one only to roles with its permission
   - label: "Organização"
     path: organization
     area: client
     resource: organization       # checked as organization:read (action defaults to read)
+  - label: "As minhas tarefas"
+    path: tasks
+    area: client
+    resource: task               # checked as task:read
+    order: 15

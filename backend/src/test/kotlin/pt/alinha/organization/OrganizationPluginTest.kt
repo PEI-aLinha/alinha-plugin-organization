@@ -20,8 +20,8 @@ class OrganizationPluginTest {
     }
 
     @Test
-    fun `analysts only read and only a registrant registers`() {
-        assertThat(manifest.rolePermissions["analyst"]).containsExactly(OrganizationPlugin.READ)
+    fun `analysts only read and see their tasks, and only a registrant registers`() {
+        assertThat(manifest.rolePermissions["analyst"]).containsExactlyInAnyOrder(OrganizationPlugin.READ, OrganizationPlugin.TASKS)
         manifest.rolePermissions.filterKeys { it != "registrant" }.values
             .forEach { assertThat(it).doesNotContain(OrganizationPlugin.REGISTER) }
     }
