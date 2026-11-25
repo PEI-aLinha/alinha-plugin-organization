@@ -181,6 +181,7 @@ class TaskIntegrationTest {
         mine(ana).andExpect { content { json("[]") } }
         assertThat(mineReferences(bruno)).containsExactly("q1")
         assertThat(events.of<TaskAssigned>().map { it.assigneeId }).containsExactly(ana, bruno)
+        assertThat(audit(TASK_ASSIGNED).last()).contains("\"previousAssignee\": \"$ana\"")
     }
 
     @Test
@@ -205,6 +206,20 @@ class TaskIntegrationTest {
         assertThat(asTenant { tasks.tasks("$QUESTION ") }).hasSize(1)
         asTenant { tasks.unassign("$QUESTION ", "q1 ") }
         assertThat(asTenant { tasks.tasks(QUESTION) }).isEmpty()
+    }
+
+    @Test
+    fun `another organization cannot complete, unassign or list this organization's task`() {
+        assign("q1")
+        val other = TenantId(UUID.randomUUID())
+
+        asTenant(other) { tasks.complete(QUESTION, "q1") }
+        asTenant(other) { tasks.unassign(QUESTION, "q1") }
+
+        assertThat(asTenant(other) { tasks.tasks(QUESTION) }).isEmpty()
+        val task = asTenant { tasks.tasks(QUESTION) }.single()
+        assertThat(task.status).isEqualTo(TaskStatus.OPEN)
+        assertThat(events.of<TaskCompleted>()).isEmpty()
     }
 
     @Test

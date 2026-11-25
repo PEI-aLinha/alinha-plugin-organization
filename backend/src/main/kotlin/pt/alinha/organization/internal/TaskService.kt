@@ -1,5 +1,6 @@
 package pt.alinha.organization.internal
 
+import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -43,11 +44,14 @@ class TaskService(
     private val correlation: CorrelationContext,
 ) : TaskApi {
 
+    private val log = LoggerFactory.getLogger(javaClass)
+
     @Transactional
     override fun assign(assignment: TaskAssignment): TaskView {
         val valid = validated(assignment)
         val now = Instant.now()
         val existing = tasks.findByTypeAndReference(valid.type, valid.reference)
+        val previousAssignee = existing?.assignee
         val (task, change) = if (existing == null) {
             val created = TaskEntity(UUID.randomUUID(), valid.type, valid.reference, valid.title, valid.link, valid.assignee, valid.dueDate, now)
             tasks.save(created) to TaskEntity.Change.ASSIGNMENT
@@ -57,7 +61,10 @@ class TaskService(
         if (change == TaskEntity.Change.NONE) return task.toView()
         audit.record(
             TASK_ASSIGNED, TASK_ENTITY_TYPE, task.id.toString(),
-            mapOf("type" to task.type, "reference" to task.reference, "assignee" to task.assignee, "dueDate" to task.dueDate?.toString()),
+            mapOf(
+                "type" to task.type, "reference" to task.reference, "assignee" to task.assignee,
+                "previousAssignee" to previousAssignee?.takeIf { it != task.assignee }, "dueDate" to task.dueDate?.toString(),
+            ),
         )
         // Only new work for the assignee: a new title or due date alone must not send another assignment e-mail.
         if (change == TaskEntity.Change.ASSIGNMENT) {
@@ -70,7 +77,8 @@ class TaskService(
 
     @Transactional
     override fun unassign(type: String, reference: String) {
-        val task = tasks.findByTypeAndReference(type.trim(), reference.trim()) ?: return
+        val task = tasks.findByTypeAndReference(type.trim(), reference.trim())
+            ?: return log.debug("No task to unassign for {} {}", type, reference)
         tasks.delete(task)
         audit.record(
             TASK_UNASSIGNED, TASK_ENTITY_TYPE, task.id.toString(),
@@ -80,7 +88,8 @@ class TaskService(
 
     @Transactional
     override fun complete(type: String, reference: String) {
-        val task = tasks.findByTypeAndReference(type.trim(), reference.trim()) ?: return
+        val task = tasks.findByTypeAndReference(type.trim(), reference.trim())
+            ?: return log.debug("No task to complete for {} {}", type, reference)
         if (!task.complete(Instant.now())) return
         audit.record(
             TASK_COMPLETED, TASK_ENTITY_TYPE, task.id.toString(),
