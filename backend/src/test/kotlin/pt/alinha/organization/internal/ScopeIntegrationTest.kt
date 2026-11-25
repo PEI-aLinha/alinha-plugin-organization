@@ -18,7 +18,9 @@ import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
 import org.springframework.test.web.servlet.put
 import org.springframework.transaction.support.TransactionTemplate
+import pt.alinha.core.compliance.ApplicabilityQuery
 import pt.alinha.core.compliance.ApplicabilityRules
+import pt.alinha.core.compliance.Nis2Classification
 import pt.alinha.core.compliance.Nis2EntityType
 import pt.alinha.core.tenant.TenantContext
 import pt.alinha.organization.internal.domain.ApplicabilityAnswersInput
@@ -79,6 +81,7 @@ class ScopeIntegrationTest {
     @Autowired private lateinit var identity: FakeIdentityDirectory
     @Autowired private lateinit var json: JsonMapper
     @Autowired private lateinit var service: ScopeService
+    @Autowired private lateinit var query: ApplicabilityQuery
     @Autowired private lateinit var tenants: TenantContext
     @Autowired private lateinit var tx: TransactionTemplate
     @Autowired private lateinit var dataSource: DataSource
@@ -695,6 +698,64 @@ class ScopeIntegrationTest {
             jsonPath("$.qualification") { value(null) }
             jsonPath("$.nis2") { value(null) }
         }
+    }
+
+    // --- ApplicabilityQuery (core#25): what the assessment plugin reads on start ---
+
+    /** runAs refuses to run inside the test's mock request; an executor's thread has none. */
+    private fun <T> asTenant(tenant: String, block: () -> T): T {
+        val executor = Executors.newSingleThreadExecutor()
+        try {
+            return executor.submit<T> { tenants.runAs(TenantId(UUID.fromString(tenant))) { block() } }
+                .get(30, TimeUnit.SECONDS)
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    fun `the applicability query is null before the scope is answered`() {
+        val tenant = registered()
+
+        assertThat(asTenant(tenant) { query.current(TenantId(UUID.fromString(tenant))) }).isNull()
+    }
+
+    @Test
+    fun `the applicability query assesses the stored answers with the current size`() {
+        val tenant = registered()
+        answer(tenant).andExpect { status { isOk() } }
+
+        val result = asTenant(tenant) { query.current(TenantId(UUID.fromString(tenant))) }!!
+
+        assertThat(result.rulesVersion).isEqualTo(ApplicabilityRules.VERSION)
+        assertThat(result.nis2Classification).isEqualTo(Nis2Classification.IMPORTANT)
+        assertThat(result.officialNis2Classification).isNull()
+        assertThat(result.effectiveNis2Classification).isEqualTo(Nis2Classification.IMPORTANT)
+    }
+
+    @Test
+    fun `the official qualification overrides the indicative classification in the applicability query`() {
+        val tenant = registered()
+        answer(tenant).andExpect { status { isOk() } }
+        qualify(tenant, qualificationBody(classification = "essential")).andExpect { status { isOk() } }
+
+        val result = asTenant(tenant) { query.current(TenantId(UUID.fromString(tenant))) }!!
+
+        assertThat(result.nis2Classification).isEqualTo(Nis2Classification.IMPORTANT)
+        assertThat(result.officialNis2Classification).isEqualTo(Nis2Classification.ESSENTIAL)
+        assertThat(result.effectiveNis2Classification).isEqualTo(Nis2Classification.ESSENTIAL)
+    }
+
+    @Test
+    fun `the applicability query refuses a tenant other than the current one`() {
+        val tenantA = registered()
+        val tenantB = registered()
+        answer(tenantB).andExpect { status { isOk() } }
+
+        val thrown = runCatching { asTenant(tenantA) { query.current(TenantId(UUID.fromString(tenantB))) } }
+            .exceptionOrNull()
+
+        assertThat(thrown?.cause).isInstanceOf(IllegalArgumentException::class.java)
     }
 }
 
