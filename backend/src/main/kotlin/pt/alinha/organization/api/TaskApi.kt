@@ -10,7 +10,7 @@ import java.util.UUID
  * when that work is done. Each call joins the caller's transaction and is recorded in the audit trail there; the
  * caller checks its own permission before calling.
  *
- * A piece of work is identified by [TaskAssignment.type] and [TaskAssignment.reference] (surrounding spaces ignored)
+ * A piece of work is identified by [TaskAssignment.type] and [TaskAssignment.reference] (surrounding spaces ignored in both)
  * and has at most one task. `TaskAssigned` (in `events`) is published when the work is given to someone (new, another
  * assignee or reopened), `TaskCompleted` when it is done.
  *

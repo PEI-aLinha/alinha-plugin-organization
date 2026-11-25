@@ -11,7 +11,7 @@ create table organization.task (
     reference    text        not null check (char_length(reference) between 1 and 200),
     title        text        not null check (char_length(title) between 1 and 200),
     -- Where the work is done, relative to the client area (e.g. assessment/<id>), so the task list can link to it.
-    link         text        check (char_length(link) between 1 and 300),
+    link         text        check (char_length(link) <= 300 and link ~ '^[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*$'),
     -- The assignee's token `sub`, like the audit trail's actor: no name or e-mail here (RNF15).
     assignee     text        not null check (char_length(assignee) between 1 and 255),
     due_date     date,

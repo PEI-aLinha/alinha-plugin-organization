@@ -194,15 +194,16 @@ class TaskIntegrationTest {
     }
 
     @Test
-    fun `the reference is matched the same way when assigning and when closing`() {
-        asTenant { tasks.assign(TaskAssignment(QUESTION, " q1 ", "Responder", ana)) }
+    fun `the type and reference are matched the same way when assigning and when closing`() {
+        asTenant { tasks.assign(TaskAssignment(" $QUESTION ", " q1 ", "Responder", ana)) }
 
-        asTenant { tasks.complete(QUESTION, " q1 ") }
+        asTenant { tasks.complete(" $QUESTION", " q1 ") }
 
         val task = asTenant { tasks.tasks(QUESTION) }.single()
         assertThat(task.reference).isEqualTo("q1")
         assertThat(task.status).isEqualTo(TaskStatus.DONE)
-        asTenant { tasks.unassign(QUESTION, "q1 ") }
+        assertThat(asTenant { tasks.tasks("$QUESTION ") }).hasSize(1)
+        asTenant { tasks.unassign("$QUESTION ", "q1 ") }
         assertThat(asTenant { tasks.tasks(QUESTION) }).isEmpty()
     }
 
@@ -246,7 +247,7 @@ class TaskIntegrationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = ["https://evil.example/x", "/assessment/a1", "//evil.example", "assessment/../admin", "a?b=1"])
+    @ValueSource(strings = ["https://evil.example/x", "/assessment/a1", "//evil.example", "assessment/../admin", "a?b=1", "a//b", "a/"])
     fun `a link must stay inside the client area`(link: String) {
         assertThrows<IllegalArgumentException> {
             asTenant { tasks.assign(TaskAssignment(QUESTION, "q1", "Responder", ana, link = link)) }

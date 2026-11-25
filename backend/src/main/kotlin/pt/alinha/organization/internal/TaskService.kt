@@ -24,7 +24,7 @@ internal const val TASK_COMPLETED = "organization.task-completed"
 
 private val TYPE = Regex("^[a-z][a-z0-9-]{0,49}$")
 /** A path inside the client area (`assessment/<id>`): no scheme, host, dots or query, so it cannot lead elsewhere. */
-private val LINK = Regex("^[A-Za-z0-9][A-Za-z0-9/_-]*$")
+private val LINK = Regex("^[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*$")
 private const val MAX_REFERENCE = 200
 private const val MAX_TITLE = 200
 private const val MAX_LINK = 300
@@ -70,7 +70,7 @@ class TaskService(
 
     @Transactional
     override fun unassign(type: String, reference: String) {
-        val task = tasks.findByTypeAndReference(type, reference.trim()) ?: return
+        val task = tasks.findByTypeAndReference(type.trim(), reference.trim()) ?: return
         tasks.delete(task)
         audit.record(
             TASK_UNASSIGNED, TASK_ENTITY_TYPE, task.id.toString(),
@@ -80,7 +80,7 @@ class TaskService(
 
     @Transactional
     override fun complete(type: String, reference: String) {
-        val task = tasks.findByTypeAndReference(type, reference.trim()) ?: return
+        val task = tasks.findByTypeAndReference(type.trim(), reference.trim()) ?: return
         if (!task.complete(Instant.now())) return
         audit.record(
             TASK_COMPLETED, TASK_ENTITY_TYPE, task.id.toString(),
@@ -90,7 +90,7 @@ class TaskService(
     }
 
     @Transactional(readOnly = true)
-    override fun tasks(type: String): List<TaskView> = tasks.findByType(type).map { it.toView() }
+    override fun tasks(type: String): List<TaskView> = tasks.findByType(type.trim()).map { it.toView() }
 
     /** The caller's tasks in the current tenant: open ones first, by due date (none last), then the done ones. */
     @Transactional(readOnly = true)
@@ -102,7 +102,8 @@ class TaskService(
         )
 
     private fun validated(a: TaskAssignment): TaskAssignment {
-        require(TYPE.matches(a.type)) { "Task type must be kebab-case, at most 50 characters" }
+        val type = a.type.trim()
+        require(TYPE.matches(type)) { "Task type must be kebab-case, at most 50 characters" }
         val reference = a.reference.trim()
         val title = a.title.trim()
         val assignee = a.assignee.trim()
@@ -113,7 +114,7 @@ class TaskService(
         require(link == null || (link.length <= MAX_LINK && LINK.matches(link))) {
             "Task link must be a path relative to the client area, at most $MAX_LINK characters"
         }
-        return a.copy(reference = reference, title = title, assignee = assignee, link = link)
+        return a.copy(type = type, reference = reference, title = title, assignee = assignee, link = link)
     }
 }
 
