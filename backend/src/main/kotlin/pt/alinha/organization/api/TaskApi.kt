@@ -10,13 +10,19 @@ import java.util.UUID
  * when that work is done. Each call joins the caller's transaction and is recorded in the audit trail there; the
  * caller checks its own permission before calling.
  *
- * A piece of work is identified by [TaskAssignment.type] and [TaskAssignment.reference] and has at most one task.
- * [TaskAssigned] and [TaskCompleted] (in `events`) are published for each change.
+ * A piece of work is identified by [TaskAssignment.type] and [TaskAssignment.reference] (surrounding spaces ignored)
+ * and has at most one task. `TaskAssigned` (in `events`) is published when the work is given to someone (new, another
+ * assignee or reopened), `TaskCompleted` when it is done.
+ *
+ * Concurrency: two first assignments of the same work at once make the second caller's transaction fail on the
+ * one-task-per-work constraint, and two changes to the same task at once fail on its version. Nothing is half-saved;
+ * the caller's transaction rolls back and it may retry (an action on one piece of work rarely runs twice at once).
  */
 interface TaskApi {
     /**
      * Gives the work to [TaskAssignment.assignee]. If it already has a task, the task is updated and reopened (a new
-     * assignee, due date or title); the same assignment again changes nothing.
+     * assignee, due date or title); the same assignment again changes nothing. A new title, link or due date alone is
+     * audited but publishes no `TaskAssigned`.
      *
      * @throws IllegalArgumentException when a field is blank, too long or [TaskAssignment.type] is not kebab-case.
      */

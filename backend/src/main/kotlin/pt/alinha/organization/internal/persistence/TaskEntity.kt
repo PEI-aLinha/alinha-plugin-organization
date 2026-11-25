@@ -50,19 +50,28 @@ class TaskEntity(
     var completedAt: Instant? = null
         protected set
 
-    /** Gives the work to [assignee] again, reopening it if it was done. Returns whether anything changed. */
-    fun reassign(title: String, link: String?, assignee: String, dueDate: LocalDate?, at: Instant): Boolean {
-        val changed = this.title != title || this.link != link || this.assignee != assignee ||
-            this.dueDate != dueDate || status != TaskStatus.OPEN
-        if (!changed) return false
-        if (this.assignee != assignee || status != TaskStatus.OPEN) assignedAt = at
+    /** What [reassign] changed. */
+    enum class Change { NONE, DETAILS, ASSIGNMENT }
+
+    /**
+     * Gives the work to [assignee] again, reopening it if it was done. [Change.ASSIGNMENT] when the assignee changed
+     * or the task was reopened (the assignee has new work); [Change.DETAILS] when only the title, link or due date did.
+     */
+    fun reassign(title: String, link: String?, assignee: String, dueDate: LocalDate?, at: Instant): Change {
+        val assignment = this.assignee != assignee || status != TaskStatus.OPEN
+        val details = this.title != title || this.link != link || this.dueDate != dueDate
+        if (assignment) assignedAt = at
         this.title = title
         this.link = link
         this.assignee = assignee
         this.dueDate = dueDate
         status = TaskStatus.OPEN
         completedAt = null
-        return true
+        return when {
+            assignment -> Change.ASSIGNMENT
+            details -> Change.DETAILS
+            else -> Change.NONE
+        }
     }
 
     /** Returns false when it was already done. */

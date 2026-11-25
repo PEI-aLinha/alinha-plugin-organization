@@ -184,6 +184,29 @@ class TaskIntegrationTest {
     }
 
     @Test
+    fun `a new title or due date is audited but sends no new assignment event`() {
+        assign("q1", due = LocalDate.of(2026, 12, 5))
+        assign("q1", due = LocalDate.of(2026, 12, 9), title = "Responder à pergunta sobre MFA")
+
+        assertThat(events.of<TaskAssigned>()).hasSize(1)
+        assertThat(audit(TASK_ASSIGNED)).hasSize(2)
+        assertThat(asTenant { tasks.tasks(QUESTION) }.single().title).isEqualTo("Responder à pergunta sobre MFA")
+    }
+
+    @Test
+    fun `the reference is matched the same way when assigning and when closing`() {
+        asTenant { tasks.assign(TaskAssignment(QUESTION, " q1 ", "Responder", ana)) }
+
+        asTenant { tasks.complete(QUESTION, " q1 ") }
+
+        val task = asTenant { tasks.tasks(QUESTION) }.single()
+        assertThat(task.reference).isEqualTo("q1")
+        assertThat(task.status).isEqualTo(TaskStatus.DONE)
+        asTenant { tasks.unassign(QUESTION, "q1 ") }
+        assertThat(asTenant { tasks.tasks(QUESTION) }).isEmpty()
+    }
+
+    @Test
     fun `completing closes the task once, with an audit entry and an event`() {
         val task = assign("q1")
 
