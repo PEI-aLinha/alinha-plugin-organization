@@ -42,6 +42,24 @@ class DomainNameTest {
     }
 
     @ParameterizedTest
+    @ValueSource(
+        strings = [
+            "intranet.local", "db.internal", "x.localhost", "host.corp", "nas.lan", "router.home", "foo.test",
+            "foo.example", "foo.invalid", "abc.onion", "router.home.arpa", "1.168.192.in-addr.arpa", "x.alt",
+            "srv.localdomain", "example.com", "www.example.org", "mail.example.net", "HTTPS://Intranet.LOCAL/",
+        ],
+    )
+    fun `reserved and internal names are not the organization's own`(typed: String) {
+        assertThat(DomainName.parse(typed)).isEqualTo(DomainName.Result.Reserved)
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["local.pt", "internal-audit.com", "example-empresa.pt", "testes.pt", "corp.pt"])
+    fun `a reserved word below a public top-level domain is fine`(typed: String) {
+        assertThat(DomainName.parse(typed)).isEqualTo(DomainName.Result.Valid(typed))
+    }
+
+    @ParameterizedTest
     @ValueSource(ints = [63, 64])
     fun `a label has at most 63 characters`(length: Int) {
         val result = DomainName.parse("a".repeat(length) + ".pt")

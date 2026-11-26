@@ -5,7 +5,7 @@ const MAX_LENGTH = 253
 /**
  * The organization's domain from what was typed (`https://www.empresa.pt/` → `empresa.pt`), internationalized
  * names in ASCII form, or null when it is not a domain. Same rules as the backend (`DomainName.kt`), which also
- * refuses shared domains such as gmail.com.
+ * refuses shared domains such as gmail.com and reserved or internal names such as intranet.local.
  */
 export function normalizeDomain(raw: string): string | null {
   const text = raw.trim().toLowerCase()

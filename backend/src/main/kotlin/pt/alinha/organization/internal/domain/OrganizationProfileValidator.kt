@@ -161,6 +161,9 @@ object OrganizationProfileValidator {
                 DomainName.Result.Shared -> null.also {
                     fail("domain", "Este domínio é de um serviço partilhado, como o Gmail. Indique o domínio da sua organização.")
                 }
+                DomainName.Result.Reserved -> null.also {
+                    fail("domain", "Este nome só existe em redes internas ou de teste. Indique o domínio público da sua organização.")
+                }
             }
         }
 

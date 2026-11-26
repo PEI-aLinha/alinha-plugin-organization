@@ -8,7 +8,9 @@ import java.net.IDN
  * What people type is often a web address, so the scheme, `www.`, port, path and trailing dot are dropped. The
  * result is lower case, internationalized names in ASCII form (`xn--...`), letters, digits and hyphens only, at
  * least two labels and a real top-level domain (so never an IP address). The external-surface provider checks this
- * domain from the internet, so shared domains that belong to someone else are refused.
+ * domain from the internet, so shared domains that belong to someone else are refused, and so are reserved and
+ * internal names (`.local`, `.internal`, `.test`, `home.arpa`, `example.com`, ...), which have no public owner and
+ * could point the provider at a private network.
  */
 object DomainName {
     const val MAX_LENGTH = 253
@@ -19,6 +21,8 @@ object DomainName {
         data object Malformed : Result
         /** A domain shared by many organizations (webmail, free hosting): not the organization's own. */
         data object Shared : Result
+        /** A reserved or internal name (RFC 2606, RFC 6761, RFC 6762, RFC 9476, ICANN's `.internal`). */
+        data object Reserved : Result
     }
 
     private val SCHEME = Regex("""^[a-z][a-z0-9+.\-]*://""")
@@ -35,6 +39,18 @@ object DomainName {
         "weebly.com", "webnode.pt", "netlify.app", "vercel.app", "pages.dev", "herokuapp.com", "azurewebsites.net",
         "cloudfront.net", "amazonaws.com", "web.app", "firebaseapp.com", "sharepoint.com", "onmicrosoft.com",
     )
+
+    /**
+     * Top-level names that are not on the public internet: special-use and documentation names, and the ones used
+     * inside private networks by convention (`.lan`, `.corp`, `.home`, ...), which ICANN will not delegate.
+     */
+    private val RESERVED_TOP_LEVEL = setOf(
+        "local", "localhost", "localdomain", "internal", "intranet", "private", "lan", "home", "corp", "test",
+        "example", "invalid", "onion", "arpa", "alt",
+    )
+
+    /** Second-level names reserved for documentation (RFC 2606). */
+    private val RESERVED = setOf("example.com", "example.net", "example.org")
 
     fun parse(raw: String): Result {
         var text = raw.trim().lowercase()
@@ -54,6 +70,8 @@ object DomainName {
             TOP_LEVEL.matches(labels.last())
         return when {
             !wellFormed -> Result.Malformed
+            labels.last() in RESERVED_TOP_LEVEL || RESERVED.any { ascii == it || ascii.endsWith(".$it") } ->
+                Result.Reserved
             SHARED.any { ascii == it || ascii.endsWith(".$it") } -> Result.Shared
             else -> Result.Valid(ascii)
         }

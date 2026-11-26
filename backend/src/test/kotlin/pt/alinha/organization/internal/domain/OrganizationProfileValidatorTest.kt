@@ -54,6 +54,7 @@ class OrganizationProfileValidatorTest {
         assertThat(errorsOf(validInput().copy(domain = "10.0.0.1")))
             .containsEntry("domain", "Indique só o domínio, por exemplo empresa.pt.")
         assertThat(errorsOf(validInput().copy(domain = "gmail.com"))["domain"]).contains("serviço partilhado")
+        assertThat(errorsOf(validInput().copy(domain = "intranet.local"))["domain"]).contains("redes internas")
     }
 
     @Test
