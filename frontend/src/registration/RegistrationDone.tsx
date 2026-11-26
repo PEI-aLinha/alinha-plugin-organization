@@ -18,7 +18,6 @@ export function RegistrationDone({ name, form, onRegisterAgain }: {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="Registo concluído"
         title={name ? `A ${name} está registada` : 'A sua organização já está registada'}
         subtitle={form
           ? 'A organização ficou associada à sua conta. É o Responsável designado: vê toda a informação da empresa e pode convidar a sua equipa.'
