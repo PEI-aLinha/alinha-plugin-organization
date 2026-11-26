@@ -27,6 +27,7 @@ private val TYPE = Regex("^[a-z][a-z0-9-]{0,49}$")
 /** A path inside the client area (`assessment/<id>`): no scheme, host, dots or query, so it cannot lead elsewhere. */
 private val LINK = Regex("^[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*$")
 private const val MAX_REFERENCE = 200
+private const val MAX_TYPE_LABEL = 60
 private const val MAX_TITLE = 200
 private const val MAX_LINK = 300
 private const val MAX_ASSIGNEE = 255
@@ -53,10 +54,10 @@ class TaskService(
         val existing = tasks.findByTypeAndReference(valid.type, valid.reference)
         val previousAssignee = existing?.assignee
         val (task, change) = if (existing == null) {
-            val created = TaskEntity(UUID.randomUUID(), valid.type, valid.reference, valid.title, valid.link, valid.assigneeId, valid.dueDate, now)
+            val created = TaskEntity(UUID.randomUUID(), valid.type, valid.reference, valid.typeLabel, valid.title, valid.link, valid.assigneeId, valid.dueDate, now)
             tasks.save(created) to TaskEntity.Change.ASSIGNMENT
         } else {
-            existing to existing.reassign(valid.title, valid.link, valid.assigneeId, valid.dueDate, now)
+            existing to existing.reassign(valid.typeLabel, valid.title, valid.link, valid.assigneeId, valid.dueDate, now)
         }
         if (change == TaskEntity.Change.NONE) return task.toView()
         audit.record(
@@ -66,8 +67,8 @@ class TaskService(
                 "previousAssignee" to previousAssignee?.takeIf { it != task.assignee }, "dueDate" to task.dueDate?.toString(),
             ),
         )
-        // Only new work for the assignee: a new title or due date alone must not send another assignment e-mail.
-        if (change == TaskEntity.Change.ASSIGNMENT) {
+        // New work or a new deadline for the assignee; a new title, label or link alone must not send another e-mail.
+        if (change == TaskEntity.Change.ASSIGNMENT || change == TaskEntity.Change.DUE_DATE) {
             events.publishEvent(
                 TaskAssigned(tenants.current(), correlation.current(), task.id, task.type, task.reference, task.assignee, task.dueDate),
             )
@@ -113,19 +114,21 @@ class TaskService(
     private fun validated(a: TaskAssignment): TaskAssignment {
         val type = a.type.trim()
         require(TYPE.matches(type)) { "Task type must be kebab-case, at most 50 characters" }
+        val typeLabel = a.typeLabel.trim()
         val reference = a.reference.trim()
         val title = a.title.trim()
         val assignee = a.assigneeId.trim()
         val link = a.link?.trim()
         require(reference.length in 1..MAX_REFERENCE) { "Task reference must have 1 to $MAX_REFERENCE characters" }
+        require(typeLabel.length in 1..MAX_TYPE_LABEL) { "Task type label must have 1 to $MAX_TYPE_LABEL characters" }
         require(title.length in 1..MAX_TITLE) { "Task title must have 1 to $MAX_TITLE characters" }
         require(assignee.length in 1..MAX_ASSIGNEE) { "Task assignee must have 1 to $MAX_ASSIGNEE characters" }
         require(link == null || (link.length <= MAX_LINK && LINK.matches(link))) {
             "Task link must be a path relative to the client area, at most $MAX_LINK characters"
         }
-        return a.copy(type = type, reference = reference, title = title, assigneeId = assignee, link = link)
+        return a.copy(type = type, typeLabel = typeLabel, reference = reference, title = title, assigneeId = assignee, link = link)
     }
 }
 
 internal fun TaskEntity.toView() =
-    TaskView(id, type, reference, title, link, assignee, dueDate, status, assignedAt, completedAt)
+    TaskView(id, type, typeLabel, reference, title, link, assignee, dueDate, status, assignedAt, completedAt)

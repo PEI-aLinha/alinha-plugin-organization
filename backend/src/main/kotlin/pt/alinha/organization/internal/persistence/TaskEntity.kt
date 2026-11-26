@@ -20,6 +20,7 @@ class TaskEntity(
     @Id val id: UUID,
     @Column(nullable = false, updatable = false) val type: String,
     @Column(nullable = false, updatable = false) val reference: String,
+    typeLabel: String,
     title: String,
     link: String?,
     assignee: String,
@@ -31,6 +32,9 @@ class TaskEntity(
     var version: Long = 0
         protected set
 
+    @Column(name = "type_label", nullable = false)
+    var typeLabel: String = typeLabel
+        protected set
     var title: String = title
         protected set
     var link: String? = link
@@ -50,17 +54,20 @@ class TaskEntity(
     var completedAt: Instant? = null
         protected set
 
-    /** What [reassign] changed. */
-    enum class Change { NONE, DETAILS, ASSIGNMENT }
+    /** What [reassign] changed, the most important first. */
+    enum class Change { NONE, DETAILS, DUE_DATE, ASSIGNMENT }
 
     /**
      * Gives the work to [assignee] again, reopening it if it was done. [Change.ASSIGNMENT] when the assignee changed
-     * or the task was reopened (the assignee has new work); [Change.DETAILS] when only the title, link or due date did.
+     * or the task was reopened (the assignee has new work); [Change.DUE_DATE] when the due date changed;
+     * [Change.DETAILS] when only the title, type label or link did.
      */
-    fun reassign(title: String, link: String?, assignee: String, dueDate: LocalDate?, at: Instant): Change {
+    fun reassign(typeLabel: String, title: String, link: String?, assignee: String, dueDate: LocalDate?, at: Instant): Change {
         val assignment = this.assignee != assignee || status != TaskStatus.OPEN
-        val details = this.title != title || this.link != link || this.dueDate != dueDate
+        val dueDateChanged = this.dueDate != dueDate
+        val details = this.typeLabel != typeLabel || this.title != title || this.link != link
         if (assignment) assignedAt = at
+        this.typeLabel = typeLabel
         this.title = title
         this.link = link
         this.assignee = assignee
@@ -69,6 +76,7 @@ class TaskEntity(
         completedAt = null
         return when {
             assignment -> Change.ASSIGNMENT
+            dueDateChanged -> Change.DUE_DATE
             details -> Change.DETAILS
             else -> Change.NONE
         }

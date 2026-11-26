@@ -15,6 +15,7 @@ import java.util.UUID
 data class TaskResponse(
     val id: UUID,
     val type: String,
+    val typeLabel: String,
     val reference: String,
     val title: String,
     val link: String?,
@@ -27,7 +28,7 @@ data class TaskResponse(
 )
 
 private fun TaskView.toResponse() =
-    TaskResponse(id, type, reference, title, link, assigneeId, dueDate, status.name.lowercase(), assignedAt, completedAt)
+    TaskResponse(id, type, typeLabel, reference, title, link, assigneeId, dueDate, status.name.lowercase(), assignedAt, completedAt)
 
 /**
  * The caller's own tasks in the current organization (organization#7). Only the caller's: a member never sees

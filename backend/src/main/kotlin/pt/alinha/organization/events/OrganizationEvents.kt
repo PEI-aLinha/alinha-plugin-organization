@@ -26,8 +26,9 @@ data class OrganizationRegistered(
 ) : DomainEvent
 
 /**
- * A task was given to a member, or reassigned or reopened (organization#7): for the assignment e-mail
- * (notifications#3). Carries the assignee's `sub` only; the work is named by [type] and [reference].
+ * A task was given to a member, reassigned, reopened or got a new due date (organization#7): for the assignment
+ * e-mail (notifications#3), so [dueDate] is always the current deadline. Carries the assignee's `sub` only; the
+ * work is named by [type] and [reference].
  */
 data class TaskAssigned(
     override val tenantId: TenantId,

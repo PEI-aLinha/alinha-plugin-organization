@@ -35,6 +35,7 @@ import java.util.concurrent.CompletionException
 
 private const val MINE = "/api/organization/tasks/mine"
 private const val QUESTION = "assessment-question"
+private const val LABEL = "Pergunta da avaliação"
 
 /**
  * organization#7: other plugins give work to members through TaskApi, and each member sees only their own tasks.
@@ -98,7 +99,7 @@ class TaskIntegrationTest {
         title: String = "Responder à pergunta $reference",
         tenantId: TenantId = tenant,
     ) = asTenant(tenantId) {
-        tasks.assign(TaskAssignment(QUESTION, reference, title, assignee, due, "assessment/a1/questions/$reference"))
+        tasks.assign(TaskAssignment(QUESTION, LABEL, reference, title, assignee, due, "assessment/a1/questions/$reference"))
     }
 
     private fun mine(subject: String, role: String = "analyst", tenantId: TenantId = tenant) =
@@ -129,6 +130,7 @@ class TaskIntegrationTest {
         assertThat(mineReferences(ana)).containsExactly("q2", "q1", "q3", "q4")
         mine(ana).andExpect {
             jsonPath("$[0].title") { value("Responder à pergunta q2") }
+            jsonPath("$[0].typeLabel") { value(LABEL) }
             jsonPath("$[0].link") { value("assessment/a1/questions/q2") }
             jsonPath("$[0].dueDate") { value("2026-12-05") }
             jsonPath("$[0].status") { value("open") }
@@ -153,7 +155,7 @@ class TaskIntegrationTest {
     }
 
     @Test
-    fun `assigning is audited and published, and the same assignment again changes nothing`() {
+    fun `assigning is audited and published, and the same assignment again on an open task changes nothing`() {
         val task = assign("q1", due = LocalDate.of(2026, 12, 5))
         assign("q1", due = LocalDate.of(2026, 12, 5))
 
@@ -186,9 +188,9 @@ class TaskIntegrationTest {
     }
 
     @Test
-    fun `a new title or due date is audited but sends no new assignment event`() {
+    fun `a new title alone is audited but sends no new assignment event`() {
         assign("q1", due = LocalDate.of(2026, 12, 5))
-        assign("q1", due = LocalDate.of(2026, 12, 9), title = "Responder à pergunta sobre MFA")
+        assign("q1", due = LocalDate.of(2026, 12, 5), title = "Responder à pergunta sobre MFA")
 
         assertThat(events.of<TaskAssigned>()).hasSize(1)
         assertThat(audit(TASK_ASSIGNED)).hasSize(2)
@@ -196,8 +198,37 @@ class TaskIntegrationTest {
     }
 
     @Test
+    fun `a new due date is published, so the assignee learns the new deadline`() {
+        assign("q1", due = LocalDate.of(2026, 12, 5))
+        assign("q1", due = LocalDate.of(2026, 12, 9))
+        assign("q1", due = null)
+
+        assertThat(events.of<TaskAssigned>().map { it.dueDate }).containsExactly(LocalDate.of(2026, 12, 5), LocalDate.of(2026, 12, 9), null)
+    }
+
+    @Test
+    fun `the same assignment again on a done task reopens it and is published`() {
+        assign("q1")
+        asTenant { tasks.complete(QUESTION, "q1") }
+
+        val reopened = assign("q1")
+
+        assertThat(reopened.status).isEqualTo(TaskStatus.OPEN)
+        assertThat(events.of<TaskAssigned>()).hasSize(2)
+    }
+
+    @Test
+    fun `the owning plugin names the kind of work`() {
+        assign("q1")
+        asTenant { tasks.assign(TaskAssignment(QUESTION, "Pergunta do questionário", "q1", "Responder à pergunta q1", ana)) }
+
+        mine(ana).andExpect { jsonPath("$[0].typeLabel") { value("Pergunta do questionário") } }
+        assertThat(events.of<TaskAssigned>()).hasSize(1)
+    }
+
+    @Test
     fun `the type and reference are matched the same way when assigning and when closing`() {
-        asTenant { tasks.assign(TaskAssignment(" $QUESTION ", " q1 ", "Responder", ana)) }
+        asTenant { tasks.assign(TaskAssignment(" $QUESTION ", LABEL, " q1 ", "Responder", ana)) }
 
         asTenant { tasks.complete(" $QUESTION", " q1 ") }
 
@@ -254,7 +285,7 @@ class TaskIntegrationTest {
     fun `another plugin lists the organization's tasks of its own type only`() {
         assign("q1")
         assign("q2", assignee = bruno)
-        asTenant { tasks.assign(TaskAssignment("risk-assets-asset", "a1", "Registar o servidor", ana)) }
+        asTenant { tasks.assign(TaskAssignment("risk-assets-asset", "Registo de ativo", "a1", "Registar o servidor", ana)) }
         assign("q9", tenantId = TenantId(UUID.randomUUID()))
 
         val questions = asTenant { tasks.tasks(QUESTION) }
@@ -266,7 +297,7 @@ class TaskIntegrationTest {
     @ValueSource(strings = ["https://evil.example/x", "/assessment/a1", "//evil.example", "assessment/../admin", "a?b=1", "a//b", "a/"])
     fun `a link must stay inside the client area`(link: String) {
         assertThrows<IllegalArgumentException> {
-            asTenant { tasks.assign(TaskAssignment(QUESTION, "q1", "Responder", ana, link = link)) }
+            asTenant { tasks.assign(TaskAssignment(QUESTION, LABEL, "q1", "Responder", ana, link = link)) }
         }
     }
 
@@ -274,15 +305,17 @@ class TaskIntegrationTest {
     @ValueSource(strings = ["Assessment", "assessment_question", "-question", ""])
     fun `the type must be kebab-case`(type: String) {
         assertThrows<IllegalArgumentException> {
-            asTenant { tasks.assign(TaskAssignment(type, "q1", "Responder", ana)) }
+            asTenant { tasks.assign(TaskAssignment(type, LABEL, "q1", "Responder", ana)) }
         }
     }
 
     @Test
     fun `blank fields are refused`() {
-        assertThrows<IllegalArgumentException> { asTenant { tasks.assign(TaskAssignment(QUESTION, " ", "Responder", ana)) } }
-        assertThrows<IllegalArgumentException> { asTenant { tasks.assign(TaskAssignment(QUESTION, "q1", " ", ana)) } }
-        assertThrows<IllegalArgumentException> { asTenant { tasks.assign(TaskAssignment(QUESTION, "q1", "Responder", "")) } }
+        assertThrows<IllegalArgumentException> { asTenant { tasks.assign(TaskAssignment(QUESTION, LABEL, " ", "Responder", ana)) } }
+        assertThrows<IllegalArgumentException> { asTenant { tasks.assign(TaskAssignment(QUESTION, LABEL, "q1", " ", ana)) } }
+        assertThrows<IllegalArgumentException> { asTenant { tasks.assign(TaskAssignment(QUESTION, LABEL, "q1", "Responder", "")) } }
+        assertThrows<IllegalArgumentException> { asTenant { tasks.assign(TaskAssignment(QUESTION, " ", "q1", "Responder", ana)) } }
+        assertThrows<IllegalArgumentException> { asTenant { tasks.assign(TaskAssignment(QUESTION, "x".repeat(61), "q1", "Responder", ana)) } }
         assertThat(asTenant { tasks.tasks(QUESTION) }).isEmpty()
     }
 }

@@ -12,7 +12,11 @@ import java.util.UUID
  *
  * A piece of work is identified by [TaskAssignment.type] and [TaskAssignment.reference] (surrounding spaces ignored in both)
  * and has at most one task. `TaskAssigned` (in `events`) is published when the work is given to someone (new, another
- * assignee or reopened), `TaskCompleted` when it is done.
+ * assignee or reopened) or its due date changes, `TaskCompleted` when it is done.
+ *
+ * The assignee is not checked here: the caller must give the work to a member of the current tenant who can read
+ * their tasks (Designated Officer or analyst, permission `task:read`), e.g. one it chose from the tenant's members.
+ * A consultant or an unknown `sub` would be accepted and notified, but could never see the task.
  *
  * Concurrency: two first assignments of the same work at once make the second caller's transaction fail on the
  * one-task-per-work constraint, and two changes to the same task at once fail on its version. Nothing is half-saved;
@@ -20,9 +24,10 @@ import java.util.UUID
  */
 interface TaskApi {
     /**
-     * Gives the work to [TaskAssignment.assigneeId]. If it already has a task, the task is updated and reopened (a new
-     * assignee, due date or title); the same assignment again changes nothing. A new title, link or due date alone is
-     * audited but publishes no `TaskAssigned`.
+     * Gives the work to [TaskAssignment.assigneeId]. If it already has a task, the task is updated and reopened if it
+     * was done (published as `TaskAssigned`, like a new assignee). A new due date alone also publishes `TaskAssigned`,
+     * so the assignee learns the new deadline; a new title, type label or link alone is audited but publishes nothing.
+     * The same assignment again on an open task changes nothing.
      *
      * @throws IllegalArgumentException when a field is blank, too long or [TaskAssignment.type] is not kebab-case.
      */
@@ -41,11 +46,16 @@ interface TaskApi {
 data class TaskAssignment(
     /** Kind of work, kebab-case, prefixed with the owning plugin (e.g. `assessment-question`). */
     val type: String,
+    /**
+     * What this kind of work is called, in European Portuguese, shown above the title (e.g. `Pergunta da avaliação`).
+     * The owning plugin names its own types, so the task list needs no list of them.
+     */
+    val typeLabel: String,
     /** The work's id in the owning plugin. */
     val reference: String,
     /** What to do, in European Portuguese, shown in the assignee's task list. */
     val title: String,
-    /** The assignee's token `sub` (as `TaskAssigned.assigneeId`). */
+    /** The assignee's token `sub` (as `TaskAssigned.assigneeId`): a member of the current tenant with `task:read`. */
     val assigneeId: String,
     val dueDate: LocalDate? = null,
     /** Where the work is done, relative to the client area, e.g. `assessment/<id>`; null when there is no page. */
@@ -57,6 +67,7 @@ enum class TaskStatus { OPEN, DONE }
 data class TaskView(
     val id: UUID,
     val type: String,
+    val typeLabel: String,
     val reference: String,
     val title: String,
     val link: String?,

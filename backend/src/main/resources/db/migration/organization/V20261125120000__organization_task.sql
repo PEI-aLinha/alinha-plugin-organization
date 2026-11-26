@@ -7,6 +7,8 @@ create table organization.task (
     version      bigint      not null,
     -- Kind of work, named by the plugin that owns it (e.g. assessment-question).
     type         text        not null check (type ~ '^[a-z][a-z0-9-]{0,49}$'),
+    -- What that kind of work is called, in European Portuguese, also named by the owning plugin.
+    type_label   text        not null check (char_length(type_label) between 1 and 60),
     -- The work's id in the owning plugin; opaque here.
     reference    text        not null check (char_length(reference) between 1 and 200),
     title        text        not null check (char_length(title) between 1 and 200),
