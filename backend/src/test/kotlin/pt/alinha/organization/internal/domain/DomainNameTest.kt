@@ -47,6 +47,7 @@ class DomainNameTest {
             "intranet.local", "db.internal", "x.localhost", "host.corp", "nas.lan", "router.home", "foo.test",
             "foo.example", "foo.invalid", "abc.onion", "router.home.arpa", "1.168.192.in-addr.arpa", "x.alt",
             "srv.localdomain", "example.com", "www.example.org", "mail.example.net", "HTTPS://Intranet.LOCAL/",
+            "10.0.0.1.nip.io", "127.0.0.1.sslip.io", "anything.localtest.me", "app.lvh.me", "nip.io",
         ],
     )
     fun `reserved and internal names are not the organization's own`(typed: String) {

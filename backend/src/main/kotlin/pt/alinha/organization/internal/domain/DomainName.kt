@@ -8,9 +8,15 @@ import java.net.IDN
  * What people type is often a web address, so the scheme, `www.`, port, path and trailing dot are dropped. The
  * result is lower case, internationalized names in ASCII form (`xn--...`), letters, digits and hyphens only, at
  * least two labels and a real top-level domain (so never an IP address). The external-surface provider checks this
- * domain from the internet, so shared domains that belong to someone else are refused, and so are reserved and
- * internal names (`.local`, `.internal`, `.test`, `home.arpa`, `example.com`, ...), which have no public owner and
- * could point the provider at a private network.
+ * domain from the internet, so shared domains that belong to someone else are refused, and so are names that
+ * cannot be an organization's public domain: reserved and internal names (`.local`, `.internal`, `.test`,
+ * `home.arpa`, `example.com`, ...) and the wildcard DNS services that answer with any address (`nip.io`,
+ * `localtest.me`, ...).
+ *
+ * This is only a check on the name, so it cannot keep the provider off a private network: any public name can
+ * resolve to a private address. That guard is where the provider connects (the workers' `alinha_job_consumer.net`:
+ * every resolved address must be public, the connection is pinned to it and redirects are not followed). Nor does it
+ * prove the organization owns the domain: that is the officer's declaration in the MVP (main repo ADR 0007).
  */
 object DomainName {
     const val MAX_LENGTH = 253
@@ -49,8 +55,14 @@ object DomainName {
         "example", "invalid", "onion", "arpa", "alt",
     )
 
-    /** Second-level names reserved for documentation (RFC 2606). */
-    private val RESERVED = setOf("example.com", "example.net", "example.org")
+    /**
+     * Second-level names reserved for documentation (RFC 2606), and wildcard DNS services whose names resolve to an
+     * address written in them or to loopback, never to an organization's own servers.
+     */
+    private val RESERVED = setOf(
+        "example.com", "example.net", "example.org",
+        "nip.io", "sslip.io", "xip.io", "localtest.me", "lvh.me", "vcap.me", "traefik.me", "local.gd",
+    )
 
     fun parse(raw: String): Result {
         var text = raw.trim().lowercase()
