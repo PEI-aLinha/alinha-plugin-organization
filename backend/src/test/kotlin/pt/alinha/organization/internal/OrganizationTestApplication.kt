@@ -23,7 +23,10 @@ import pt.alinha.core.compliance.ApplicabilityRules
 import pt.alinha.core.registry.PluginRegistry
 import pt.alinha.core.tenant.internal.CorrelationIdFilter
 import pt.alinha.core.tenant.internal.HibernateTenantResolver
+import pt.alinha.core.tenant.internal.DirectoryMember
 import pt.alinha.core.tenant.internal.IdentityDirectory
+import pt.alinha.core.tenant.internal.IdentityMembership
+import pt.alinha.core.tenant.internal.TenantMembershipService
 import pt.alinha.core.tenant.internal.JwtTenantContext
 import pt.alinha.core.tenant.internal.RegistrationRateLimiter
 import pt.alinha.core.tenant.internal.ScopedCorrelationContext
@@ -32,11 +35,36 @@ import pt.alinha.core.tenant.internal.TenantResolutionInterceptor
 import pt.alinha.core.tenant.internal.TenantWebConfig
 import pt.alinha.organization.OrganizationPlugin
 import pt.alinha.organization.internal.persistence.OrganizationProfileRepository
+import pt.alinha.organization.internal.web.MembersController
 import pt.alinha.organization.internal.web.OrganizationController
 import pt.alinha.organization.internal.web.OrganizationProblems
 import pt.alinha.organization.internal.web.ScopeController
 import pt.alinha.pluginapi.TenantId
 import java.util.Collections
+
+/** Keeps memberships in memory instead of calling Keycloak (ADR 0007). */
+class FakeIdentityMembership : IdentityMembership {
+    val accounts: MutableMap<String, DirectoryMember> = Collections.synchronizedMap(mutableMapOf())
+    private val tenantOf: MutableMap<String, TenantId> = Collections.synchronizedMap(mutableMapOf())
+
+    fun add(subject: String, tenant: TenantId, role: String) {
+        accounts[subject] = DirectoryMember(subject, "$subject@empresa.pt", "Pessoa ${subject.take(4)}", setOf(role))
+        tenantOf[subject] = tenant
+    }
+
+    override fun joinTenant(subject: String, tenantId: TenantId, role: String) = add(subject, tenantId, role)
+
+    override fun leaveTenant(subject: String, tenantId: TenantId, role: String) {
+        if (tenantOf[subject] == tenantId) {
+            tenantOf.remove(subject)
+            accounts.remove(subject)
+        }
+    }
+
+    override fun members(tenantId: TenantId) = accounts.values.filter { tenantOf[it.subject] == tenantId }
+
+    override fun endSessions(subject: String) = Unit
+}
 
 /** Records assignments instead of calling Keycloak; can be told to fail. */
 class FakeIdentityDirectory : IdentityDirectory {
@@ -67,10 +95,14 @@ class FakeIdentityDirectory : IdentityDirectory {
     HibernateTenantResolver::class, CorrelationIdFilter::class, ScopedCorrelationContext::class, TenantProvisioner::class, RegistrationRateLimiter::class, AuditActor::class, JpaAuditTrail::class,
     OrganizationPlugin::class, OrganizationService::class, OrganizationController::class, OrganizationProblems::class,
     ApplicabilityRules::class, ScopeService::class, ScopeController::class,
+    TenantMembershipService::class, MembersService::class, MembersController::class,
 )
 class OrganizationTestApplication {
     @Bean
     fun identityDirectory() = FakeIdentityDirectory()
+
+    @Bean
+    fun identityMembership() = FakeIdentityMembership()
 
     /** The provisioner requires one (its orphan metric must be exported); the app gets it from Actuator. */
     @Bean
@@ -81,6 +113,8 @@ class OrganizationTestApplication {
     fun testJwtDecoder(): JwtDecoder = JwtDecoder { token ->
         val (role, sub, tenant) = (token.split(".") + listOf("", "")).take(3)
         val builder = Jwt.withTokenValue(token).header("alg", "none").subject(sub).claim("email_verified", true)
+            // A Bearer token cannot hold an `@`: every test account's email is derived from its `sub`.
+            .claim("email", "$sub@empresa.pt")
             .claim("realm_access", mapOf("roles" to listOf(role)))
         when {
             tenant.isEmpty() -> Unit

@@ -27,6 +27,15 @@ class OrganizationPluginTest {
     }
 
     @Test
+    fun `only the Designated Officer sees and manages the team, and only a new account accepts an invitation`() {
+        manifest.rolePermissions.forEach { (role, granted) ->
+            if (role != "responsible") assertThat(granted).doesNotContain(OrganizationPlugin.MEMBER_READ, OrganizationPlugin.MEMBER_MANAGE)
+            if (role != "registrant") assertThat(granted).doesNotContain(OrganizationPlugin.INVITATION_ACCEPT)
+        }
+        assertThat(manifest.rolePermissions["responsible"]).contains(OrganizationPlugin.MEMBER_READ, OrganizationPlugin.MEMBER_MANAGE)
+    }
+
+    @Test
     fun `plugin yaml lists the same menu entries as the manifest`() {
         assertThat(manifest.nav).isNotEmpty
         manifest.nav.forEach { entry ->
