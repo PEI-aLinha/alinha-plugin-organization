@@ -8,10 +8,14 @@ import org.springframework.boot.persistence.autoconfigure.EntityScan
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
 import org.springframework.context.annotation.Primary
+import org.springframework.context.event.EventListener
+import org.springframework.core.task.TaskDecorator
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories
 import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.security.oauth2.jwt.JwtDecoder
 import org.springframework.test.context.DynamicPropertyRegistry
+import org.springframework.transaction.support.TransactionSynchronization
+import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.testcontainers.postgresql.PostgreSQLContainer
 import pt.alinha.core.access.internal.AccessWebConfig
 import pt.alinha.core.access.internal.RequiresPermissionInterceptor
@@ -23,6 +27,7 @@ import pt.alinha.core.compliance.ApplicabilityRules
 import pt.alinha.core.registry.PluginRegistry
 import pt.alinha.core.tenant.internal.CorrelationIdFilter
 import pt.alinha.core.tenant.internal.HibernateTenantResolver
+import pt.alinha.core.tenant.internal.AsyncListenersConfig
 import pt.alinha.core.tenant.internal.IdentityDirectory
 import pt.alinha.core.tenant.internal.JwtTenantContext
 import pt.alinha.core.tenant.internal.RegistrationRateLimiter
@@ -30,13 +35,18 @@ import pt.alinha.core.tenant.internal.ScopedCorrelationContext
 import pt.alinha.core.tenant.internal.TenantProvisioner
 import pt.alinha.core.tenant.internal.TenantResolutionInterceptor
 import pt.alinha.core.tenant.internal.TenantWebConfig
+import pt.alinha.core.tenant.AssignedConsultant
+import pt.alinha.core.tenant.ConsultantAssignment
+import pt.alinha.core.tenant.TenantContext
 import pt.alinha.organization.OrganizationPlugin
+import pt.alinha.organization.events.ConsultantAssigned
 import pt.alinha.organization.internal.persistence.OrganizationProfileRepository
 import pt.alinha.organization.internal.web.OrganizationController
 import pt.alinha.organization.internal.web.OrganizationProblems
 import pt.alinha.organization.internal.web.ScopeController
 import pt.alinha.pluginapi.TenantId
 import java.util.Collections
+import java.util.concurrent.atomic.AtomicInteger
 
 /** Records assignments instead of calling Keycloak; can be told to fail. */
 class FakeIdentityDirectory : IdentityDirectory {
@@ -49,6 +59,67 @@ class FakeIdentityDirectory : IdentityDirectory {
     }
 
     override fun revokeTenant(subject: String, tenantId: TenantId) = Unit
+}
+
+/**
+ * Stands in for the core's assignment (tested in the core): records each call's tenant and how its transaction ended
+ * (TransactionSynchronization.STATUS_*); the answer can be set.
+ */
+class FakeConsultantAssignment(private val tenants: TenantContext) : ConsultantAssignment {
+    val calls: MutableList<Call> = Collections.synchronizedList(mutableListOf())
+    val transactionOutcomes: MutableList<Int> = Collections.synchronizedList(mutableListOf())
+    @Volatile var answer: () -> AssignedConsultant? = { AssignedConsultant("consultant-sub", newlyAssigned = true) }
+
+    data class Call(val tenant: TenantId, val inTransaction: Boolean)
+
+    override fun assignConsultant(): AssignedConsultant? {
+        val inTransaction = TransactionSynchronizationManager.isActualTransactionActive()
+        FinishedAsyncTasks.assignmentOnThisThread.set(true)
+        calls += Call(tenants.current(), inTransaction)
+        if (inTransaction) {
+            TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
+                override fun afterCompletion(status: Int) {
+                    transactionOutcomes += status
+                }
+            })
+        }
+        return answer()
+    }
+}
+
+/**
+ * Counts finished @Async tasks that asked for a consultant, i.e. runs of the assignment listener, publish step
+ * included (Boot applies a TaskDecorator bean to the executor @EnableAsync uses). A test waits for them instead of
+ * sleeping before it asserts that nothing was published; other async tasks are not counted.
+ */
+class FinishedAsyncTasks : TaskDecorator {
+    companion object {
+        /** Set by [FakeConsultantAssignment] on the thread that runs the listener. */
+        val assignmentOnThisThread: ThreadLocal<Boolean> = ThreadLocal.withInitial { false }
+    }
+
+    private val finished = AtomicInteger()
+
+    fun count(): Int = finished.get()
+
+    override fun decorate(runnable: Runnable) = Runnable {
+        try {
+            runnable.run()
+        } finally {
+            if (assignmentOnThisThread.get()) finished.incrementAndGet()
+            assignmentOnThisThread.remove()
+        }
+    }
+}
+
+/** Collects [ConsultantAssigned], which is published on the listener's thread (ApplicationEvents only sees the test's). */
+class ConsultantAssignedCollector {
+    val events: MutableList<ConsultantAssigned> = Collections.synchronizedList(mutableListOf())
+
+    @EventListener
+    fun on(event: ConsultantAssigned) {
+        events += event
+    }
 }
 
 /**
@@ -67,10 +138,20 @@ class FakeIdentityDirectory : IdentityDirectory {
     HibernateTenantResolver::class, CorrelationIdFilter::class, ScopedCorrelationContext::class, TenantProvisioner::class, RegistrationRateLimiter::class, AuditActor::class, JpaAuditTrail::class,
     OrganizationPlugin::class, OrganizationService::class, OrganizationController::class, OrganizationProblems::class,
     ApplicabilityRules::class, ScopeService::class, ScopeController::class,
+    AsyncListenersConfig::class, ConsultantAssignmentListener::class,
 )
 class OrganizationTestApplication {
     @Bean
     fun identityDirectory() = FakeIdentityDirectory()
+
+    @Bean
+    fun consultantAssignment(tenants: TenantContext) = FakeConsultantAssignment(tenants)
+
+    @Bean
+    fun consultantAssignedEvents() = ConsultantAssignedCollector()
+
+    @Bean
+    fun finishedAsyncTasks() = FinishedAsyncTasks()
 
     /** The provisioner requires one (its orphan metric must be exported); the app gets it from Actuator. */
     @Bean

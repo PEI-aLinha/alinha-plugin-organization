@@ -5,8 +5,8 @@ kind: feature
 version: 0.1.0
 # Where this repo lives as a submodule inside the main repo (PEI-aLinha/alinha)
 path: plugins/feature/organization
-publishes: [OrganizationRegistered]     # events it publishes
-consumes: []      # events it consumes
+publishes: [OrganizationRegistered, ConsultantAssigned]   # events it publishes
+consumes: [OrganizationRegistered]   # events it consumes (its own: consultant assignment, organization#5)
 permissions:      # RBAC resources; role mapping lives in OrganizationPlugin.kt
   - organization:register   # registrant: create the organization (ADR 0004)
   - organization:read       # responsible, consultant, analyst

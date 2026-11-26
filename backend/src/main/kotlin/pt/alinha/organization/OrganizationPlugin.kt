@@ -15,8 +15,9 @@ class OrganizationPlugin : AlinhaPlugin {
         name = "Organization",
         kind = PluginKind.FEATURE,
         version = "0.1.0",
-        publishes = setOf("OrganizationRegistered"),
-        consumes = setOf(),
+        publishes = setOf("OrganizationRegistered", "ConsultantAssigned"),
+        // Its own event: the consultant assignment runs after the registration commits (organization#5).
+        consumes = setOf("OrganizationRegistered"),
         permissions = setOf(REGISTER, READ, EDIT),
         rolePermissions = mapOf(
             // A new account (ADR 0004) may only register its organization.
