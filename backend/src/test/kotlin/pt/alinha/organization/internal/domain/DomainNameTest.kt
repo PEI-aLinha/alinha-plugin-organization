@@ -75,4 +75,20 @@ class DomainNameTest {
         val long = List(5) { label }.joinToString(".") + ".pt"
         assertThat(DomainName.parse(long)).isEqualTo(DomainName.Result.Malformed)
     }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["straße.de", "www.straße.de", "ελληνικός.gr"])
+    fun `a name that IDNA2003 maps to another domain is refused`(typed: String) {
+        assertThat(DomainName.parse(typed)).isEqualTo(DomainName.Result.Malformed)
+    }
+
+    @ParameterizedTest
+    @CsvSource(
+        "xn--strae-oqa.de, xn--strae-oqa.de",
+        "açores-turismo。pt, xn--aores-turismo-igb.pt",
+        "ação.pt, xn--ao-siap.pt",
+    )
+    fun `an IDNA2008 name or one IDNA2003 keeps is accepted`(typed: String, expected: String) {
+        assertThat(DomainName.parse(typed)).isEqualTo(DomainName.Result.Valid(expected))
+    }
 }

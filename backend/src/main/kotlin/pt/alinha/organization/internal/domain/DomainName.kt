@@ -1,6 +1,7 @@
 package pt.alinha.organization.internal.domain
 
 import java.net.IDN
+import java.text.Normalizer
 
 /**
  * The organization's own internet domain (website and email), e.g. `empresa.pt`.
@@ -88,6 +89,7 @@ object DomainName {
         } catch (_: IllegalArgumentException) {
             return Result.Malformed
         }
+        if (!sameNameAfterIdna2003(text, ascii)) return Result.Malformed
         val labels = ascii.split('.')
         val wellFormed = ascii.length <= MAX_LENGTH && labels.size >= 2 && labels.all(LABEL::matches) &&
             TOP_LEVEL.matches(labels.last())
@@ -99,4 +101,18 @@ object DomainName {
             else -> Result.Valid(ascii)
         }
     }
+
+    /**
+     * `java.net.IDN` implements IDNA2003, which maps some letters away (`ß` to `ss`, final `ς` to `σ`), so
+     * `straße.de` would become `strasse.de`, a different domain from the one IDNA2008 registries and browsers use
+     * (`xn--strae-oqa.de`), possibly owned by someone else. A name the conversion changes is refused rather than
+     * stored as another host. ASCII input (including `xn--` labels) is never changed.
+     */
+    private fun sameNameAfterIdna2003(typed: String, ascii: String): Boolean {
+        if (typed.all { it.code < 0x80 }) return true
+        val expected = Normalizer.normalize(typed, Normalizer.Form.NFC).replace(IDEOGRAPHIC_DOTS, ".")
+        return IDN.toUnicode(ascii, IDN.USE_STD3_ASCII_RULES) == expected
+    }
+
+    private val IDEOGRAPHIC_DOTS = Regex("[\u3002\uFF0E\uFF61]")
 }
