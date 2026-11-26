@@ -32,9 +32,10 @@ data class OrganizationProfileUpdate(
     val address: AddressInput? = null,
     val contacts: ContactsInput? = null,
     val permanentContact: PermanentContactInput? = null,
+    val domain: String? = null,
 ) {
     fun toInput() = OrganizationProfileInput(
-        name, nif, cae, sector, subsector, services, employees, turnover, address, contacts, permanentContact,
+        name, nif, cae, sector, subsector, services, employees, turnover, address, contacts, permanentContact, domain,
     )
 }
 

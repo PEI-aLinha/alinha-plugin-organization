@@ -108,6 +108,7 @@ describe('toOrganizationInput', () => {
       address: { street: 'Rua da Zona Industrial do Casarão, 45', postalCode: '3750-750', city: 'Águeda' },
       contacts: { phone: '234600120', email: 'geral@compagueda.pt' },
       permanentContact: { name: 'Rui Santos', phone: '912345678' },
+      domain: 'compagueda.pt',
     })
   })
 
@@ -126,3 +127,17 @@ describe('sectors', () => {
     expect(new Set(ids).size).toBe(ids.length)
   })
 })
+
+describe('domain', () => {
+  it('is optional, normalised on submit and checked when typed', () => {
+    expect(toOrganizationInput({ ...VALID, domain: '' }).domain).toBeNull()
+    expect(toOrganizationInput(VALID).domain).toBe('compagueda.pt')
+    expect(validateStep('contacts', { ...VALID, domain: '' })).toEqual({})
+    expect(validateStep('contacts', { ...VALID, domain: '10.0.0.1' })).toEqual({ domain: 'Indique só o domínio, por exemplo empresa.pt.' })
+  })
+
+  it('takes the server message for the domain', () => {
+    expect(fromServerErrors([{ field: 'domain', message: 'Partilhado.' }])).toEqual({ domain: 'Partilhado.' })
+  })
+})
+

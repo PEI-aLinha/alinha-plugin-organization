@@ -107,6 +107,9 @@ function ContactsStep(props: StepProps) {
           <TextField step={props} name="phone" label="Telefone" type="tel" autoComplete="tel" />
           <TextField step={props} name="email" label="Email geral" type="email" placeholder="geral@empresa.pt" />
         </div>
+        <TextField step={props} name="domain" label="Domínio da organização (site e email)"
+          hint="Opcional. Serve para verificarmos de fora a segurança do site e do email. Exemplo: empresa.pt"
+          inputMode="url" autoComplete="url" placeholder="empresa.pt" />
       </Section>
       <Section title="Ponto de contacto permanente" description="A pessoa que o CNCS pode contactar a qualquer hora em caso de incidente.">
         <div className={twoColumns}>

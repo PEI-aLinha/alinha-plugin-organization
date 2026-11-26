@@ -17,4 +17,5 @@ export const VALID: OrganizationForm = {
   email: 'Geral@CompAgueda.pt ',
   contactName: 'Rui Santos',
   contactPhone: '912-345-678',
+  domain: 'https://www.CompAgueda.pt/',
 }

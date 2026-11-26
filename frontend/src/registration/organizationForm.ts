@@ -1,5 +1,6 @@
 import type { components } from '@alinha/api-client'
 import type { FieldProblem } from '@alinha/plugin-sdk'
+import { normalizeDomain } from './domain'
 import { sectorById } from './sectors'
 
 export type OrganizationProfileInput = components['schemas']['OrganizationProfileInput']
@@ -22,6 +23,8 @@ export interface OrganizationForm {
   email: string
   contactName: string
   contactPhone: string
+  /** Optional: the organization's own internet domain (website and email). */
+  domain: string
 }
 
 export type FieldKey = keyof OrganizationForm
@@ -29,7 +32,7 @@ export type OrganizationErrors = Partial<Record<FieldKey, string>>
 
 export const EMPTY_ORGANIZATION: OrganizationForm = {
   name: '', nif: '', cae: '', sector: '', subsector: '', services: '', employees: '', turnover: '',
-  address: '', postalCode: '', city: '', phone: '', email: '', contactName: '', contactPhone: '',
+  address: '', postalCode: '', city: '', phone: '', email: '', contactName: '', contactPhone: '', domain: '',
 }
 
 export type StepId = 'company' | 'activity' | 'size' | 'contacts' | 'summary'
@@ -45,7 +48,7 @@ export const STEPS: readonly Step[] = [
   { id: 'company', label: 'Empresa', fields: ['name', 'nif', 'cae'] },
   { id: 'activity', label: 'Atividade', fields: ['sector', 'subsector', 'services'] },
   { id: 'size', label: 'Dimensão', fields: ['employees', 'turnover'] },
-  { id: 'contacts', label: 'Contactos', fields: ['address', 'postalCode', 'city', 'phone', 'email', 'contactName', 'contactPhone'] },
+  { id: 'contacts', label: 'Contactos', fields: ['address', 'postalCode', 'city', 'phone', 'email', 'domain', 'contactName', 'contactPhone'] },
   { id: 'summary', label: 'Resumo', fields: [] },
 ]
 
@@ -90,6 +93,8 @@ export function isValidEmail(value: string): boolean {
   const labels = parts[1].split('.')
   return labels.length >= 2 && labels.every(Boolean)
 }
+
+export const DOMAIN_INVALID = 'Indique só o domínio, por exemplo empresa.pt.'
 
 const tooLong = (max: number) => `Use no máximo ${max} caracteres.`
 
@@ -176,6 +181,7 @@ const RULES: Record<FieldKey, (f: OrganizationForm) => string | undefined> = {
     if (value.length > MAX.email) return tooLong(MAX.email)
     return isValidEmail(value) ? undefined : 'Este email não parece válido. Exemplo: geral@empresa.pt'
   },
+  domain: (f) => (!f.domain.trim() || normalizeDomain(f.domain) ? undefined : DOMAIN_INVALID),
   contactName: (f) => textError(f.contactName, MAX.contactName, 'Indique quem é o ponto de contacto permanente.'),
   contactPhone: (f) => phoneError(f.contactPhone, 'Indique um telefone disponível a qualquer hora.'),
 }
@@ -207,7 +213,7 @@ const SERVER_FIELDS: Record<string, FieldKey> = {
   name: 'name', nif: 'nif', cae: 'cae', sector: 'sector', subsector: 'subsector', services: 'services',
   employees: 'employees', turnover: 'turnover',
   'address.street': 'address', 'address.postalCode': 'postalCode', 'address.city': 'city',
-  'contacts.phone': 'phone', 'contacts.email': 'email',
+  'contacts.phone': 'phone', 'contacts.email': 'email', domain: 'domain',
   'permanentContact.name': 'contactName', 'permanentContact.phone': 'contactPhone',
 }
 
@@ -231,5 +237,6 @@ export function toOrganizationInput(f: OrganizationForm): OrganizationProfileInp
     address: { street: f.address.trim(), postalCode: f.postalCode.trim(), city: f.city.trim() },
     contacts: { phone: digits(f.phone), email: f.email.trim().toLowerCase() },
     permanentContact: { name: f.contactName.trim(), phone: digits(f.contactPhone) },
+    domain: f.domain.trim() ? normalizeDomain(f.domain) ?? f.domain.trim() : null,
   }
 }

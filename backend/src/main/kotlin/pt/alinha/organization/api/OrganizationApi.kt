@@ -31,6 +31,11 @@ data class OrganizationProfileView(
     val address: AddressView,
     val contacts: ContactsView,
     val permanentContact: PermanentContactView,
+    /**
+     * The organization's own internet domain (website and email), e.g. `empresa.pt`: lower case, internationalized
+     * names in ASCII form (`xn--...`), never an IP address. Null when the organization did not give one.
+     */
+    val domain: String?,
     val registeredAt: Instant,
     val updatedAt: Instant,
 )

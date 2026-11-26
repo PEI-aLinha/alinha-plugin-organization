@@ -41,6 +41,23 @@ class OrganizationProfileValidatorTest {
     }
 
     @Test
+    fun `the domain is optional and normalised`() {
+        val none = OrganizationProfileValidator.validate(validInput().copy(domain = "  "))
+        val typed = OrganizationProfileValidator.validate(validInput().copy(domain = "https://www.CompAgueda.pt/"))
+
+        assertThat((none as Validation.Valid).profile.domain).isNull()
+        assertThat((typed as Validation.Valid).profile.domain).isEqualTo("compagueda.pt")
+    }
+
+    @Test
+    fun `an invalid or shared domain is reported on its field`() {
+        assertThat(errorsOf(validInput().copy(domain = "10.0.0.1")))
+            .containsEntry("domain", "Indique só o domínio, por exemplo empresa.pt.")
+        assertThat(errorsOf(validInput().copy(domain = "gmail.com"))["domain"]).contains("serviço partilhado")
+        assertThat(errorsOf(validInput().copy(domain = "intranet.local"))["domain"]).contains("redes internas")
+    }
+
+    @Test
     fun `every missing field is reported at once, with its JSON path`() {
         val errors = errorsOf(OrganizationProfileInput())
 

@@ -59,6 +59,9 @@ class OrganizationProfileEntity(
     @Column(name = "permanent_contact_phone")
     var permanentContactPhone: String = profile.permanentContact.phone
         protected set
+    @Column(name = "domain")
+    var domain: String? = profile.domain
+        protected set
     @Column(name = "updated_at", nullable = false)
     var updatedAt: Instant = registeredAt
         protected set
@@ -75,6 +78,7 @@ class OrganizationProfileEntity(
         address = Address(street, postalCode, city),
         contacts = Contacts(phone, email),
         permanentContact = PermanentContact(permanentContactName, permanentContactPhone),
+        domain = domain,
     )
 
     /**
@@ -94,6 +98,7 @@ class OrganizationProfileEntity(
             "address".takeIf { before.address != profile.address },
             "contacts".takeIf { before.contacts != profile.contacts },
             "permanentContact".takeIf { before.permanentContact != profile.permanentContact },
+            "domain".takeIf { before.domain != profile.domain },
         )
         if (changed.isEmpty()) return changed
         name = profile.name
@@ -110,6 +115,7 @@ class OrganizationProfileEntity(
         email = profile.contacts.email
         permanentContactName = profile.permanentContact.name
         permanentContactPhone = profile.permanentContact.phone
+        domain = profile.domain
         updatedAt = at
         return changed
     }

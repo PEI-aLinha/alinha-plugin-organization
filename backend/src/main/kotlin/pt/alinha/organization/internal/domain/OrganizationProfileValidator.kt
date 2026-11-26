@@ -152,6 +152,21 @@ object OrganizationProfileValidator {
             !PHONE.matches(contactPhone) -> fail("permanentContact.phone", "O telefone tem 9 dígitos e começa por 2 ou 9.")
         }
 
+        val domain = input.domain?.takeIf { it.isNotBlank() }?.let { typed ->
+            when (val parsed = DomainName.parse(typed)) {
+                is DomainName.Result.Valid -> parsed.domain
+                DomainName.Result.Malformed -> null.also {
+                    fail("domain", "Indique só o domínio, por exemplo empresa.pt.")
+                }
+                DomainName.Result.Shared -> null.also {
+                    fail("domain", "Este domínio é de um serviço partilhado, como o Gmail. Indique o domínio da sua organização.")
+                }
+                DomainName.Result.Reserved -> null.also {
+                    fail("domain", "Este nome só existe em redes internas ou de teste. Indique o domínio público da sua organização.")
+                }
+            }
+        }
+
         if (errors.isNotEmpty()) return Validation.Invalid(errors)
         return Validation.Valid(
             OrganizationProfile(
@@ -166,6 +181,7 @@ object OrganizationProfileValidator {
                 address = Address(street, postalCode, city),
                 contacts = Contacts(phone, email),
                 permanentContact = PermanentContact(contactName, contactPhone),
+                domain = domain,
             ),
         )
     }

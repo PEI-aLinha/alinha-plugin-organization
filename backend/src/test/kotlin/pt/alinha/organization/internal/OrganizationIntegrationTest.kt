@@ -6,9 +6,11 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
+import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.MediaType
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.orm.ObjectOptimisticLockingFailureException
@@ -34,13 +36,18 @@ import java.util.UUID
 private const val REGISTRATION = "/api/organization/registration"
 private const val PROFILE = "/api/organization/profile"
 
-private fun body(nif: String = "509180027", name: String = "Componentes Águeda, Lda.", version: Long? = null) = """
+private fun body(
+    nif: String = "509180027",
+    name: String = "Componentes Águeda, Lda.",
+    version: Long? = null,
+    domain: String? = null,
+) = """
     {${version?.let { "\"version\": $it," } ?: ""}
      "name": "$name", "nif": "$nif", "cae": "29320", "sector": "industria", "subsector": "automoveis",
      "services": "Fabrico de componentes para a indústria automóvel.", "employees": 120, "turnover": 18500000,
      "address": {"street": "Rua da Zona Industrial, 45", "postalCode": "3750-750", "city": "Águeda"},
      "contacts": {"phone": "234600120", "email": "geral@compagueda.pt"},
-     "permanentContact": {"name": "Rui Santos", "phone": "912345678"}}
+     "permanentContact": {"name": "Rui Santos", "phone": "912345678"}${domain?.let { ", \"domain\": \"$it\"" } ?: ""}}
 """.trimIndent()
 
 @SpringBootTest(classes = [OrganizationTestApplication::class])
@@ -285,6 +292,89 @@ class OrganizationIntegrationTest {
             String::class.java, tenant,
         )
         assertThat(details).contains("\"changed\"").contains("\"name\"").doesNotContain("S.A.")
+    }
+
+    @Test
+    fun `the domain is saved normalised, read back and recorded as changed`() {
+        val tenant = registered()
+
+        mvc.put(PROFILE) {
+            header("Authorization", "Bearer responsible.$sub.$tenant")
+            contentType = MediaType.APPLICATION_JSON
+            content = body(nif = currentNif(tenant), version = 0, domain = "https://www.CompAgueda.pt/")
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.domain") { value("compagueda.pt") }
+        }
+        mvc.get(PROFILE) { header("Authorization", "Bearer responsible.$sub.$tenant") }
+            .andExpect { jsonPath("$.domain") { value("compagueda.pt") } }
+
+        val details = jdbc.queryForObject(
+            "select details::text from audit.audit_event where tenant_id = ?::uuid and action = 'organization.updated'",
+            String::class.java, tenant,
+        )
+        assertThat(details).contains("\"domain\"").doesNotContain("compagueda.pt")
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["\"domain\": \"  \",", ""])
+    fun `a blank or omitted domain clears the stored one, since the PUT replaces the whole profile`(domainField: String) {
+        val tenant = registered()
+        val auth = "Bearer responsible.$sub.$tenant"
+        mvc.put(PROFILE) {
+            header("Authorization", auth)
+            contentType = MediaType.APPLICATION_JSON
+            content = body(nif = currentNif(tenant), version = 0, domain = "compagueda.pt")
+        }.andExpect { status { isOk() } }
+
+        mvc.put(PROFILE) {
+            header("Authorization", auth)
+            contentType = MediaType.APPLICATION_JSON
+            content = body(nif = currentNif(tenant), version = 1).replaceFirst("{", "{$domainField")
+        }.andExpect { status { isOk() } }
+
+        assertThat(
+            jdbc.queryForObject("select domain from organization.organization_profile where tenant_id = ?::uuid", String::class.java, tenant),
+        ).isNull()
+    }
+
+    @Test
+    fun `the database refuses a domain that is not in normal form`() {
+        val tenant = registered()
+
+        for (bad in listOf("Empresa.PT", "empresa", "10.0.0.1", "www.empresa.pt/")) {
+            assertThatThrownBy {
+                jdbc.update("update organization.organization_profile set domain = ? where tenant_id = ?::uuid", bad, tenant)
+            }.describedAs(bad).isInstanceOf(DataIntegrityViolationException::class.java)
+        }
+    }
+
+    @Test
+    fun `a reserved or internal domain is a 422 on its field`() {
+        val tenant = registered()
+
+        mvc.put(PROFILE) {
+            header("Authorization", "Bearer responsible.$sub.$tenant")
+            contentType = MediaType.APPLICATION_JSON
+            content = body(nif = currentNif(tenant), version = 0, domain = "intranet.local")
+        }.andExpect {
+            status { isUnprocessableEntity() }
+            jsonPath("$.errors[0].field") { value("domain") }
+        }
+    }
+
+    @Test
+    fun `a shared domain is a 422 on its field`() {
+        val tenant = registered()
+
+        mvc.put(PROFILE) {
+            header("Authorization", "Bearer responsible.$sub.$tenant")
+            contentType = MediaType.APPLICATION_JSON
+            content = body(nif = currentNif(tenant), version = 0, domain = "gmail.com")
+        }.andExpect {
+            status { isUnprocessableEntity() }
+            jsonPath("$.errors[0].field") { value("domain") }
+        }
     }
 
     @Test
