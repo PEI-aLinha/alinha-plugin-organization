@@ -158,6 +158,23 @@ class ConsultantAssignmentIntegrationTest {
     }
 
     @Test
+    fun `a retry that finds the consultant already assigned still publishes ConsultantAssigned`() {
+        // The failed attempt wrote the assignment to the identity provider before rolling back its own row.
+        val attempts = AtomicInteger()
+        assignment.answer = {
+            if (attempts.incrementAndGet() == 1) error("commit failed")
+            AssignedConsultant("consultant-sub", newlyAssigned = false)
+        }
+
+        val (tenant, _) = register()
+        listenerFinished(1)
+
+        val event = published.events.single()
+        assertThat(event.tenantId.value).isEqualTo(tenant)
+        assertThat(event.consultantId).isEqualTo("consultant-sub")
+    }
+
+    @Test
     fun `an assignment that keeps failing rolls every attempt back and does not undo the registration`() {
         assignment.answer = { error("identity provider down") }
 
