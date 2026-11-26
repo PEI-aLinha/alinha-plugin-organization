@@ -6,9 +6,11 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
+import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.MediaType
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.orm.ObjectOptimisticLockingFailureException
@@ -312,6 +314,53 @@ class OrganizationIntegrationTest {
             String::class.java, tenant,
         )
         assertThat(details).contains("\"domain\"").doesNotContain("compagueda.pt")
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["\"domain\": \"  \",", ""])
+    fun `a blank or omitted domain clears the stored one, since the PUT replaces the whole profile`(domainField: String) {
+        val tenant = registered()
+        val auth = "Bearer responsible.$sub.$tenant"
+        mvc.put(PROFILE) {
+            header("Authorization", auth)
+            contentType = MediaType.APPLICATION_JSON
+            content = body(nif = currentNif(tenant), version = 0, domain = "compagueda.pt")
+        }.andExpect { status { isOk() } }
+
+        mvc.put(PROFILE) {
+            header("Authorization", auth)
+            contentType = MediaType.APPLICATION_JSON
+            content = body(nif = currentNif(tenant), version = 1).replaceFirst("{", "{$domainField")
+        }.andExpect { status { isOk() } }
+
+        assertThat(
+            jdbc.queryForObject("select domain from organization.organization_profile where tenant_id = ?::uuid", String::class.java, tenant),
+        ).isNull()
+    }
+
+    @Test
+    fun `the database refuses a domain that is not in normal form`() {
+        val tenant = registered()
+
+        for (bad in listOf("Empresa.PT", "empresa", "10.0.0.1", "www.empresa.pt/")) {
+            assertThatThrownBy {
+                jdbc.update("update organization.organization_profile set domain = ? where tenant_id = ?::uuid", bad, tenant)
+            }.describedAs(bad).isInstanceOf(DataIntegrityViolationException::class.java)
+        }
+    }
+
+    @Test
+    fun `a reserved or internal domain is a 422 on its field`() {
+        val tenant = registered()
+
+        mvc.put(PROFILE) {
+            header("Authorization", "Bearer responsible.$sub.$tenant")
+            contentType = MediaType.APPLICATION_JSON
+            content = body(nif = currentNif(tenant), version = 0, domain = "intranet.local")
+        }.andExpect {
+            status { isUnprocessableEntity() }
+            jsonPath("$.errors[0].field") { value("domain") }
+        }
     }
 
     @Test

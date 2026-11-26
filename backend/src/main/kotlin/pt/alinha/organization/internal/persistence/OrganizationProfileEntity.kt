@@ -59,6 +59,7 @@ class OrganizationProfileEntity(
     @Column(name = "permanent_contact_phone")
     var permanentContactPhone: String = profile.permanentContact.phone
         protected set
+    @Column(name = "domain")
     var domain: String? = profile.domain
         protected set
     @Column(name = "updated_at", nullable = false)
