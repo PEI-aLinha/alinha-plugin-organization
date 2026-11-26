@@ -27,15 +27,16 @@ import java.time.Duration
  *
  * A failed attempt may still have written the assignment to the identity provider (the core writes it there before
  * its own row, and only the row rolls back); the retry then gets it back as not new. So after a failed attempt
- * `ConsultantAssigned` is published for any consultant: the event is delivered at least once, never lost, and its
- * listeners are idempotent anyway (docs/events.md).
+ * `ConsultantAssigned` is published for any consultant (at least once; its listeners are idempotent anyway,
+ * docs/events.md). This covers the retries of one run only: if every attempt fails after such a write, a later
+ * resubmission of the publication finds the consultant already assigned and publishes nothing, so the "new client"
+ * notice is not sent for that organization.
  *
  * The attempts hold one thread of the shared `@Async` executor for up to about 13 seconds plus each attempt's own
  * bounded wait. Registrations are rare and rate limited, and the executor queues work rather than dropping it.
  *
- * When every attempt fails, the error is logged with the
- * organization id and rethrown, which leaves the event publication incomplete in `public.event_publication`
- * (docs/events.md). Nothing resubmits it automatically yet; it can be resubmitted from there once the cause is fixed.
+ * When every attempt fails, the error is logged with the organization id and rethrown, which leaves the event
+ * publication incomplete in `public.event_publication` (docs/events.md). Nothing resubmits it automatically yet; it can be resubmitted from there once the cause is fixed.
  * The audit entry (`tenant.consultant_assigned`) is the core's, with `system` as actor.
  */
 @Component
@@ -60,7 +61,7 @@ class ConsultantAssignmentListener(
                 var attempts = 0
                 retry.invoke(Runnable { assignOnce(event, afterFailure = attempts++ > 0) })
             }
-        } catch (e: RuntimeException) {
+        } catch (e: Exception) {
             log.error("Could not assign a consultant to organization {} after {} attempts", event.organizationId, RETRIES + 1, e)
             throw e
         }
