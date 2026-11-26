@@ -8,15 +8,6 @@ type Task = ApiResponse<'/api/organization/tasks/mine'>[number]
 
 const TITLE = 'As minhas tarefas'
 
-/** What each kind of work is called; the owning plugin names the type (organization#7). */
-const TYPE_LABELS: Record<string, string> = {
-  'assessment-question': 'Pergunta da avaliação',
-  'risk-assets-asset': 'Registo de ativo',
-  'evidence-source': 'Ligação de fonte de evidências',
-}
-
-export const typeLabel = (type: string) => TYPE_LABELS[type] ?? 'Tarefa'
-
 /** A due date before today in Portugal (the date has no time: compared as YYYY-MM-DD). */
 export function isOverdue(task: Pick<Task, 'status' | 'dueDate'>, today = todayInLisbon()) {
   return task.status === 'open' && task.dueDate != null && task.dueDate < today
@@ -84,7 +75,8 @@ function TaskItem({ task }: { task: Task }) {
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs text-muted">{typeLabel(task.type)}</p>
+            {/* Named by the plugin that owns the work, so new kinds of work need no change here. */}
+            <p className="text-xs text-muted">{task.typeLabel}</p>
             <p className="font-medium break-words">{task.title}</p>
             <p className="mt-1 text-sm text-muted">
               {task.status === 'done'

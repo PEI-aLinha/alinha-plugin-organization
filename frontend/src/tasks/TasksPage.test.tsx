@@ -3,13 +3,14 @@ import { describe, expect, it, vi } from 'vitest'
 import type { ApiResponse } from '@alinha/api-client'
 import { ApiError, type PluginHost } from '@alinha/plugin-sdk'
 import { renderWithHost } from '../test/renderWithHost'
-import { TasksPage, isOverdue, typeLabel } from './TasksPage'
+import { TasksPage, isOverdue } from './TasksPage'
 
 type Task = ApiResponse<'/api/organization/tasks/mine'>[number]
 
 const task = (overrides: Partial<Task>): Task => ({
   id: crypto.randomUUID(),
   type: 'assessment-question',
+  typeLabel: 'Pergunta da avaliação',
   reference: 'q1',
   title: 'Responder à pergunta sobre cópias de segurança',
   link: 'assessment/a1/questions/q1',
@@ -28,7 +29,7 @@ describe('TasksPage', () => {
   it('lists the open tasks with their due date and a link to the work, then the done ones', async () => {
     const api = vi.fn(async () => [
       task({ title: 'Responder à pergunta sobre cópias de segurança' }),
-      task({ title: 'Registar o servidor de ficheiros', type: 'risk-assets-asset', dueDate: null, link: null }),
+      task({ title: 'Registar o servidor de ficheiros', type: 'risk-assets-asset', typeLabel: 'Registo de ativo', dueDate: null, link: null }),
       task({ title: 'Responder à pergunta sobre MFA', status: 'done', completedAt: '2026-11-21T09:00:00Z' }),
     ]) as unknown as PluginHost['api']
 
@@ -37,6 +38,7 @@ describe('TasksPage', () => {
     const open = await screen.findByRole('region', { name: 'Por fazer' })
     expect(within(open).getAllByRole('listitem')).toHaveLength(2)
     expect(within(open).getByText('Pergunta da avaliação')).toBeInTheDocument()
+    expect(within(open).getByText('Registo de ativo')).toBeInTheDocument()
     expect(within(open).getByText('Prazo: 05/12/2099')).toBeInTheDocument()
     expect(within(open).getByText('Sem prazo')).toBeInTheDocument()
     expect(within(open).getAllByRole('link', { name: 'Abrir' })).toHaveLength(1)
@@ -80,12 +82,5 @@ describe('isOverdue', () => {
     expect(isOverdue({ status: 'open', dueDate: '2026-11-25' }, '2026-11-25')).toBe(false)
     expect(isOverdue({ status: 'done', dueDate: '2026-11-24' }, '2026-11-25')).toBe(false)
     expect(isOverdue({ status: 'open', dueDate: null }, '2026-11-25')).toBe(false)
-  })
-})
-
-describe('typeLabel', () => {
-  it('names unknown kinds of work as a task', () => {
-    expect(typeLabel('assessment-question')).toBe('Pergunta da avaliação')
-    expect(typeLabel('something-new')).toBe('Tarefa')
   })
 })
