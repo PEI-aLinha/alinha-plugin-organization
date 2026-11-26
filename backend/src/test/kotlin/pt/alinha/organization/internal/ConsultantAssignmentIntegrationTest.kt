@@ -21,8 +21,10 @@ import pt.alinha.core.tenant.CorrelationContext
 import pt.alinha.core.tenant.TenantContext
 import pt.alinha.organization.events.OrganizationRegistered
 import pt.alinha.pluginapi.TenantId
+import java.time.Duration
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * organization#5: after a registration commits, the listener asks the core for a consultant as the new tenant and
@@ -37,6 +39,7 @@ class ConsultantAssignmentIntegrationTest {
         fun properties(registry: DynamicPropertyRegistry) {
             OrganizationDatabase.register(registry)
             registry.add("alinha.provisioning.max-per-client-per-hour") { 1_000 }
+            registry.add("alinha.organization.consultant-assignment.retry-delay") { "5ms" }
         }
     }
 
@@ -136,13 +139,38 @@ class ConsultantAssignmentIntegrationTest {
     }
 
     @Test
-    fun `a failed assignment rolls back and does not undo the registration`() {
+    fun `a failed attempt is retried in a new transaction, so a short outage still assigns a consultant`() {
+        val attempts = AtomicInteger()
+        assignment.answer = {
+            if (attempts.incrementAndGet() == 1) error("identity provider down")
+            AssignedConsultant("consultant-sub", newlyAssigned = true)
+        }
+
+        val (tenant, _) = register()
+        listenerFinished(1)
+
+        assertThat(assignment.transactionOutcomes).containsExactly(
+            TransactionSynchronization.STATUS_ROLLED_BACK,
+            TransactionSynchronization.STATUS_COMMITTED,
+        )
+        assertThat(assignment.calls.map { it.tenant.value }).containsExactly(tenant, tenant)
+        assertThat(published.events.single().tenantId.value).isEqualTo(tenant)
+    }
+
+    @Test
+    fun `an assignment that keeps failing rolls every attempt back and does not undo the registration`() {
         assignment.answer = { error("identity provider down") }
 
         val (tenant, _) = register()
         listenerFinished(1)
 
-        assertThat(assignment.transactionOutcomes).containsExactly(TransactionSynchronization.STATUS_ROLLED_BACK)
+        // One attempt and three retries.
+        assertThat(assignment.transactionOutcomes).containsExactly(
+            TransactionSynchronization.STATUS_ROLLED_BACK,
+            TransactionSynchronization.STATUS_ROLLED_BACK,
+            TransactionSynchronization.STATUS_ROLLED_BACK,
+            TransactionSynchronization.STATUS_ROLLED_BACK,
+        )
         assertThat(published.events).isEmpty()
         assertThat(
             jdbc.queryForObject("select count(*) from organization.organization_profile where tenant_id = ?", Long::class.java, tenant),
@@ -160,7 +188,7 @@ class ConsultantAssignmentIntegrationTest {
 
         // Called without the @Async proxy, to see what the event publication registry would see. On another thread:
         // MockMvc leaves its request bound to this one, and runAs refuses to run inside a request.
-        val listener = ConsultantAssignmentListener(tenants, tx, assignment, publisher, correlation)
+        val listener = ConsultantAssignmentListener(tenants, tx, assignment, publisher, correlation, Duration.ofMillis(1))
         val run = CompletableFuture.runAsync {
             listener.on(OrganizationRegistered(TenantId(tenant), UUID.randomUUID(), organizationId))
         }
