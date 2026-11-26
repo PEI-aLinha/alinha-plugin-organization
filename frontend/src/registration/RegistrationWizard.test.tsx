@@ -99,7 +99,7 @@ describe('RegistrationWizard', () => {
     renderWithHost(<RegistrationWizard />)
     type('Denominação', 'Acme')
     click('Guardar e continuar mais tarde')
-    expect(screen.getByRole('status')).toHaveTextContent('Guardado neste navegador')
+    expect(screen.getByRole('status')).toHaveTextContent('Guardado neste navegador: 1 de 15 campos preenchidos.')
     expect(loadDraft('u1')).toEqual({ ...EMPTY_ORGANIZATION, name: 'Acme' })
     type('NIF', '5')
     await waitFor(() => expect(loadDraft('u1')?.nif).toBe('5'))
