@@ -16,6 +16,8 @@ class DomainNameTest {
         "http://empresa.pt:8080/contactos?x=1#topo, empresa.pt",
         "empresa.pt., empresa.pt",
         "loja.empresa.com.pt, loja.empresa.com.pt",
+        "empresa.com.pt, empresa.com.pt",
+        "camara.gov.pt, camara.gov.pt",
         "açores-turismo.pt, xn--aores-turismo-igb.pt",
         "xn--aores-turismo-igb.pt, xn--aores-turismo-igb.pt",
     )
@@ -28,7 +30,7 @@ class DomainNameTest {
         strings = [
             "", "empresa", "192.168.1.10", "https://10.0.0.1/", "[::1]", "http://[2001:db8::1]/", "geral@empresa.pt",
             "https://user@empresa.pt", "*.empresa.pt", "-empresa.pt", "empresa-.pt", "emp resa.pt", "empresa..pt",
-            "empresa.p", "empresa.123", "empresa_ok.pt", "empresa.pt\nx",
+            "empresa.p", "empresa.123", "empresa_ok.pt", "empresa.pt\nx", "com.pt", "www.gov.pt", "https://co.uk/",
         ],
     )
     fun `anything that is not a domain is malformed`(typed: String) {
@@ -36,7 +38,7 @@ class DomainNameTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = ["gmail.com", "GMAIL.com", "empresa.github.io", "www.sapo.pt", "loja.wixsite.com"])
+    @ValueSource(strings = ["gmail.com", "GMAIL.com", "empresa.github.io", "www.sapo.pt", "loja.wixsite.com", "loja.myshopify.com"])
     fun `shared domains are not the organization's own`(typed: String) {
         assertThat(DomainName.parse(typed)).isEqualTo(DomainName.Result.Shared)
     }

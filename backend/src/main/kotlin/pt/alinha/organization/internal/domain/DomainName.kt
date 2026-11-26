@@ -36,6 +36,16 @@ object DomainName {
     private val LABEL = Regex("""^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$""")
     private val TOP_LEVEL = Regex("""^(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})$""")
 
+    /**
+     * Registry suffixes under which organizations register their names (`empresa.com.pt`): a suffix on its own is not
+     * a domain. The common ones only, not the whole Public Suffix List.
+     */
+    private val REGISTRY_SUFFIXES = setOf(
+        "com.pt", "org.pt", "gov.pt", "edu.pt", "net.pt", "int.pt", "publ.pt", "nome.pt",
+        "co.uk", "org.uk", "gov.uk", "ac.uk", "com.br", "org.br", "gov.br", "com.es", "org.es", "gob.es",
+        "com.fr", "co.ao", "gov.ao", "co.mz", "gov.mz", "com.au", "co.nz", "co.jp", "com.cn",
+    )
+
     /** Shared by many organizations: their subdomains are not the organization's own either. */
     private val SHARED = setOf(
         "gmail.com", "googlemail.com", "outlook.com", "outlook.pt", "hotmail.com", "hotmail.pt", "live.com",
@@ -44,6 +54,7 @@ object DomainName {
         "github.io", "gitlab.io", "wixsite.com", "wordpress.com", "blogspot.com", "blogspot.pt", "squarespace.com",
         "weebly.com", "webnode.pt", "netlify.app", "vercel.app", "pages.dev", "herokuapp.com", "azurewebsites.net",
         "cloudfront.net", "amazonaws.com", "web.app", "firebaseapp.com", "sharepoint.com", "onmicrosoft.com",
+        "myshopify.com",
     )
 
     /**
@@ -81,7 +92,7 @@ object DomainName {
         val wellFormed = ascii.length <= MAX_LENGTH && labels.size >= 2 && labels.all(LABEL::matches) &&
             TOP_LEVEL.matches(labels.last())
         return when {
-            !wellFormed -> Result.Malformed
+            !wellFormed || ascii in REGISTRY_SUFFIXES -> Result.Malformed
             labels.last() in RESERVED_TOP_LEVEL || RESERVED.any { ascii == it || ascii.endsWith(".$it") } ->
                 Result.Reserved
             SHARED.any { ascii == it || ascii.endsWith(".$it") } -> Result.Shared
