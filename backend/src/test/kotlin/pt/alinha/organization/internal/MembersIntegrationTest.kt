@@ -168,6 +168,31 @@ class MembersIntegrationTest {
     }
 
     @Test
+    fun `an analyst of another organization cannot be removed from here`() {
+        val elsewhere = UUID.randomUUID().toString()
+        directory.add(elsewhere, TenantId(UUID.randomUUID()), "analyst")
+
+        mvc.delete("$MEMBERS/$elsewhere") { header("Authorization", bearer("responsible", officer)) }.andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("MEMBER_NOT_FOUND") }
+        }
+        assertThat(directory.accounts).containsKey(elsewhere)
+    }
+
+    @Test
+    fun `a consultant or an analyst cannot remove anyone`() {
+        val analyst = UUID.randomUUID().toString()
+        directory.add(analyst, TenantId(tenant), "analyst")
+
+        mvc.delete("$MEMBERS/$analyst") {
+            header("Authorization", bearer("consultant"))
+            header("X-Alinha-Tenant", tenant)
+        }.andExpect { status { isForbidden() } }
+        mvc.delete("$MEMBERS/$analyst") { header("Authorization", bearer("analyst")) }.andExpect { status { isForbidden() } }
+        assertThat(directory.accounts).containsKey(analyst)
+    }
+
+    @Test
     fun `another organization's invitation cannot be revoked`() {
         val (id, _) = issued("ana@empresa.pt")
 

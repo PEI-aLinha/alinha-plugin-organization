@@ -24,7 +24,11 @@ class MembersService(private val membership: TenantMembership) {
 
     fun pendingInvitations(): List<PendingInvitation> = membership.pendingInvitations()
 
-    /** Refuses an email that already has an account here: the invitation could never be accepted (ADR 0007). */
+    /**
+     * Refuses an email that already has an account here: the invitation could never be accepted (ADR 0007). A friendly
+     * check, not the guarantee: someone who joins between the two calls still cannot accept, because the core refuses
+     * an account that is already in an organization (`ORGANIZATION_ALREADY_EXISTS`). The core normalizes the email too.
+     */
     fun invite(email: String): IssuedInvitation {
         val normalized = email.trim().lowercase()
         if (membership.members().any { it.email?.lowercase() == normalized }) throw AlreadyMemberException()
