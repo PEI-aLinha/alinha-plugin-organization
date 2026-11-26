@@ -19,7 +19,7 @@ export const typeLabel = (type: string) => TYPE_LABELS[type] ?? 'Tarefa'
 
 /** A due date before today in Portugal (the date has no time: compared as YYYY-MM-DD). */
 export function isOverdue(task: Pick<Task, 'status' | 'dueDate'>, today = todayInLisbon()) {
-  return task.status === 'OPEN' && task.dueDate != null && task.dueDate < today
+  return task.status === 'open' && task.dueDate != null && task.dueDate < today
 }
 
 function todayInLisbon() {
@@ -47,8 +47,8 @@ export function TasksPage() {
     )
   }
 
-  const open = tasks.data.filter((t) => t.status === 'OPEN')
-  const done = tasks.data.filter((t) => t.status === 'DONE')
+  const open = tasks.data.filter((t) => t.status === 'open')
+  const done = tasks.data.filter((t) => t.status === 'done')
   const subtitle = open.length === 1 ? '1 tarefa por fazer' : `${open.length} tarefas por fazer`
 
   return (
@@ -87,14 +87,14 @@ function TaskItem({ task }: { task: Task }) {
             <p className="text-xs text-muted">{typeLabel(task.type)}</p>
             <p className="font-medium break-words">{task.title}</p>
             <p className="mt-1 text-sm text-muted">
-              {task.status === 'DONE'
+              {task.status === 'done'
                 ? `Concluída a ${formatDate(task.completedAt)}`
                 : task.dueDate ? `Prazo: ${formatDate(task.dueDate)}` : 'Sem prazo'}
             </p>
           </div>
           <div className="flex items-center gap-2">
             {overdue && <Badge tone="dark">Em atraso</Badge>}
-            {task.status === 'OPEN' && task.link && (
+            {task.status === 'open' && task.link && (
               // `..` leaves this page's route: the link is relative to the client area (e.g. assessment/<id>).
               <Link to={`../${task.link}`} className={buttonClass({ variant: 'secondary' })}>
                 <ListTodo className="size-4" aria-hidden />Abrir

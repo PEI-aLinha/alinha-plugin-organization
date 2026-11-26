@@ -13,9 +13,9 @@ const task = (overrides: Partial<Task>): Task => ({
   reference: 'q1',
   title: 'Responder à pergunta sobre cópias de segurança',
   link: 'assessment/a1/questions/q1',
-  assignee: 'ana',
+  assigneeId: 'ana',
   dueDate: '2099-12-05',
-  status: 'OPEN',
+  status: 'open',
   assignedAt: '2026-11-20T10:00:00Z',
   completedAt: null,
   ...overrides,
@@ -29,7 +29,7 @@ describe('TasksPage', () => {
     const api = vi.fn(async () => [
       task({ title: 'Responder à pergunta sobre cópias de segurança' }),
       task({ title: 'Registar o servidor de ficheiros', type: 'risk-assets-asset', dueDate: null, link: null }),
-      task({ title: 'Responder à pergunta sobre MFA', status: 'DONE', completedAt: '2026-11-21T09:00:00Z' }),
+      task({ title: 'Responder à pergunta sobre MFA', status: 'done', completedAt: '2026-11-21T09:00:00Z' }),
     ]) as unknown as PluginHost['api']
 
     renderPage(api)
@@ -76,10 +76,10 @@ describe('TasksPage', () => {
 
 describe('isOverdue', () => {
   it('only counts open tasks with a due date before today', () => {
-    expect(isOverdue({ status: 'OPEN', dueDate: '2026-11-24' }, '2026-11-25')).toBe(true)
-    expect(isOverdue({ status: 'OPEN', dueDate: '2026-11-25' }, '2026-11-25')).toBe(false)
-    expect(isOverdue({ status: 'DONE', dueDate: '2026-11-24' }, '2026-11-25')).toBe(false)
-    expect(isOverdue({ status: 'OPEN', dueDate: null }, '2026-11-25')).toBe(false)
+    expect(isOverdue({ status: 'open', dueDate: '2026-11-24' }, '2026-11-25')).toBe(true)
+    expect(isOverdue({ status: 'open', dueDate: '2026-11-25' }, '2026-11-25')).toBe(false)
+    expect(isOverdue({ status: 'done', dueDate: '2026-11-24' }, '2026-11-25')).toBe(false)
+    expect(isOverdue({ status: 'open', dueDate: null }, '2026-11-25')).toBe(false)
   })
 })
 

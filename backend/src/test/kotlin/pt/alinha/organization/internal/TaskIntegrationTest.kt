@@ -131,8 +131,9 @@ class TaskIntegrationTest {
             jsonPath("$[0].title") { value("Responder à pergunta q2") }
             jsonPath("$[0].link") { value("assessment/a1/questions/q2") }
             jsonPath("$[0].dueDate") { value("2026-12-05") }
-            jsonPath("$[0].status") { value("OPEN") }
-            jsonPath("$[3].status") { value("DONE") }
+            jsonPath("$[0].status") { value("open") }
+            jsonPath("$[0].assigneeId") { value(ana) }
+            jsonPath("$[3].status") { value("done") }
         }
         assertThat(mineReferences(bruno)).containsExactly("q5")
     }
@@ -258,7 +259,7 @@ class TaskIntegrationTest {
 
         val questions = asTenant { tasks.tasks(QUESTION) }
 
-        assertThat(questions.map { it.reference to it.assignee }).containsExactlyInAnyOrder("q1" to ana, "q2" to bruno)
+        assertThat(questions.map { it.reference to it.assigneeId }).containsExactlyInAnyOrder("q1" to ana, "q2" to bruno)
     }
 
     @ParameterizedTest

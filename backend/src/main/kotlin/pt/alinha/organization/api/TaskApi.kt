@@ -20,7 +20,7 @@ import java.util.UUID
  */
 interface TaskApi {
     /**
-     * Gives the work to [TaskAssignment.assignee]. If it already has a task, the task is updated and reopened (a new
+     * Gives the work to [TaskAssignment.assigneeId]. If it already has a task, the task is updated and reopened (a new
      * assignee, due date or title); the same assignment again changes nothing. A new title, link or due date alone is
      * audited but publishes no `TaskAssigned`.
      *
@@ -45,8 +45,8 @@ data class TaskAssignment(
     val reference: String,
     /** What to do, in European Portuguese, shown in the assignee's task list. */
     val title: String,
-    /** The assignee's token `sub`. */
-    val assignee: String,
+    /** The assignee's token `sub` (as `TaskAssigned.assigneeId`). */
+    val assigneeId: String,
     val dueDate: LocalDate? = null,
     /** Where the work is done, relative to the client area, e.g. `assessment/<id>`; null when there is no page. */
     val link: String? = null,
@@ -60,7 +60,7 @@ data class TaskView(
     val reference: String,
     val title: String,
     val link: String?,
-    val assignee: String,
+    val assigneeId: String,
     val dueDate: LocalDate?,
     val status: TaskStatus,
     val assignedAt: Instant,

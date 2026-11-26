@@ -53,10 +53,10 @@ class TaskService(
         val existing = tasks.findByTypeAndReference(valid.type, valid.reference)
         val previousAssignee = existing?.assignee
         val (task, change) = if (existing == null) {
-            val created = TaskEntity(UUID.randomUUID(), valid.type, valid.reference, valid.title, valid.link, valid.assignee, valid.dueDate, now)
+            val created = TaskEntity(UUID.randomUUID(), valid.type, valid.reference, valid.title, valid.link, valid.assigneeId, valid.dueDate, now)
             tasks.save(created) to TaskEntity.Change.ASSIGNMENT
         } else {
-            existing to existing.reassign(valid.title, valid.link, valid.assignee, valid.dueDate, now)
+            existing to existing.reassign(valid.title, valid.link, valid.assigneeId, valid.dueDate, now)
         }
         if (change == TaskEntity.Change.NONE) return task.toView()
         audit.record(
@@ -115,7 +115,7 @@ class TaskService(
         require(TYPE.matches(type)) { "Task type must be kebab-case, at most 50 characters" }
         val reference = a.reference.trim()
         val title = a.title.trim()
-        val assignee = a.assignee.trim()
+        val assignee = a.assigneeId.trim()
         val link = a.link?.trim()
         require(reference.length in 1..MAX_REFERENCE) { "Task reference must have 1 to $MAX_REFERENCE characters" }
         require(title.length in 1..MAX_TITLE) { "Task title must have 1 to $MAX_TITLE characters" }
@@ -123,7 +123,7 @@ class TaskService(
         require(link == null || (link.length <= MAX_LINK && LINK.matches(link))) {
             "Task link must be a path relative to the client area, at most $MAX_LINK characters"
         }
-        return a.copy(type = type, reference = reference, title = title, assignee = assignee, link = link)
+        return a.copy(type = type, reference = reference, title = title, assigneeId = assignee, link = link)
     }
 }
 
