@@ -1,8 +1,10 @@
 import { definePlugin } from '@alinha/plugin-sdk'
-import { Building2 } from 'lucide-react'
+import { Building2, Users } from 'lucide-react'
 import { OrganizationPage } from './pages/OrganizationPage'
 import { RegistrationWizard } from './registration/RegistrationWizard'
 import { ScopePage } from './scope/ScopePage'
+import { AcceptInvitationPage } from './team/AcceptInvitationPage'
+import { TeamPage } from './team/TeamPage'
 
 /**
  * The plugin's frontend entry point. The shell reads this object and mounts
@@ -19,13 +21,16 @@ export default definePlugin({
   routes: {
     onboarding: [
       { path: 'organization', handle: { title: 'Registo da organização' }, Component: RegistrationWizard },
+      { path: 'invitation', handle: { title: 'Convite' }, Component: AcceptInvitationPage },
     ],
     client: [
       { path: 'organization', handle: { title: 'Organização' }, Component: OrganizationPage },
       { path: 'organization/scope', handle: { title: 'Âmbito regulatório' }, Component: ScopePage },
+      { path: 'team', handle: { title: 'Equipa', resource: 'member' }, Component: TeamPage },
     ],
   },
   nav: [
     { label: 'Organização', path: 'organization', area: 'client', icon: Building2, order: 20 },
+    { label: 'Equipa', path: 'team', area: 'client', icon: Users, resource: 'member', order: 25 },
   ],
 })
