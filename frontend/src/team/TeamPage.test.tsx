@@ -54,7 +54,7 @@ describe('TeamPage', () => {
 
   it('invites an analyst and shows the link to send, with the secret in the fragment', async () => {
     const { api, calls } = fakeApi([OFFICER], [], () => ({
-      id: 'inv-2', email: 'ana@compagueda.pt', expiresAt: '2026-12-03T10:00:00Z', token: 'segredo-123',
+      id: 'inv-2', email: 'ana@compagueda.pt', createdAt: '2026-11-26T10:00:00Z', expiresAt: '2026-12-03T10:00:00Z', token: 'segredo-123',
     }))
     renderPage(api)
 

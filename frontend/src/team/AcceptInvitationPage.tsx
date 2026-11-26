@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useLocation } from 'react-router'
 import { MailOpen } from 'lucide-react'
-import { errorMessage, useApiMutation, useHost } from '@alinha/plugin-sdk'
+import { ApiError, errorMessage, useApiMutation, useHost } from '@alinha/plugin-sdk'
 import { Button, Card, EmptyState, Logo } from '@alinha/ui'
 
 /**
@@ -34,7 +34,7 @@ export function AcceptInvitationPage() {
       </EmptyState>
     )
   } else {
-    const error = accept.isError ? errorMessage(accept.error) : refreshError ? errorMessage(refreshError) : null
+    const error = accept.isError ? acceptError(accept.error) : refreshError ? errorMessage(refreshError) : null
     content = (
       <Card className="flex flex-col gap-5 px-7 py-7 max-md:px-5">
         <header className="flex flex-col gap-2">
@@ -72,6 +72,18 @@ export function AcceptInvitationPage() {
       </div>
     </div>
   )
+}
+
+/**
+ * A 403 without a `code` means the account cannot accept at all: usually its email is not verified yet (the contract
+ * lists the cases). Say what to do instead of the generic "no permission".
+ */
+export const CANNOT_ACCEPT =
+  'Esta conta ainda não pode aceitar convites. Confirme o seu email, entre de novo e volte a abrir este link.'
+
+function acceptError(error: unknown): string {
+  if (error instanceof ApiError && error.status === 403 && !error.problem?.code) return CANNOT_ACCEPT
+  return errorMessage(error)
 }
 
 function safeDecode(value: string): string {

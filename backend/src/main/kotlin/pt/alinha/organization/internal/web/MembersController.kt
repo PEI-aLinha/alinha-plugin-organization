@@ -22,7 +22,7 @@ data class MemberView(val id: String, val name: String?, val email: String?, val
 data class InvitationView(val id: UUID, val email: String, val createdAt: Instant, val expiresAt: Instant, val expired: Boolean)
 
 /** `IssuedInvitation` in the contract: the secret goes out once, here, for the link the page shows. */
-data class IssuedInvitationView(val id: UUID, val email: String, val expiresAt: Instant, val token: String)
+data class IssuedInvitationView(val id: UUID, val email: String, val createdAt: Instant, val expiresAt: Instant, val token: String)
 
 data class InvitationRequest(val email: String? = null)
 
@@ -51,7 +51,7 @@ class MembersController(private val members: MembersService) {
     @PostMapping("/invitations")
     @ResponseStatus(HttpStatus.CREATED)
     fun invite(@RequestBody body: InvitationRequest): IssuedInvitationView =
-        members.invite(body.email.orEmpty()).let { IssuedInvitationView(it.id, it.email, it.expiresAt, it.token) }
+        members.invite(body.email.orEmpty()).let { IssuedInvitationView(it.id, it.email, it.createdAt, it.expiresAt, it.token) }
 
     @RequiresPermission("member", "manage")
     @DeleteMapping("/invitations/{invitationId}")

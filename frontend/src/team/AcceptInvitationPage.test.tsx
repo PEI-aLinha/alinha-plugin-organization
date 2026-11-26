@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ApiError, type PluginHost } from '@alinha/plugin-sdk'
 import { renderWithHost } from '../test/renderWithHost'
-import { AcceptInvitationPage } from './AcceptInvitationPage'
+import { AcceptInvitationPage, CANNOT_ACCEPT } from './AcceptInvitationPage'
 
 describe('AcceptInvitationPage', () => {
   it('accepts with the token from the fragment, then refreshes the session', async () => {
@@ -39,6 +39,17 @@ describe('AcceptInvitationPage', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(detail)
     expect(reauthenticate).not.toHaveBeenCalled()
+  })
+
+  it('tells an account that cannot accept yet (e.g. unverified email) what to do', async () => {
+    const api = vi.fn(async () => {
+      throw new ApiError(403, '/organization/invitations/accept')
+    }) as unknown as PluginHost['api']
+    renderWithHost(<AcceptInvitationPage />, { url: '/onboarding/invitation#segredo-123', host: { api } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Aceitar convite' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(CANNOT_ACCEPT)
   })
 
   it('lets the person retry the session refresh without accepting twice', async () => {

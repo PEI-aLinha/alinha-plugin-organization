@@ -81,6 +81,7 @@ class MembersIntegrationTest {
             jsonPath("$[0].id") { value(id) }
             jsonPath("$[0].expired") { value(false) }
             jsonPath("$[0].token") { doesNotExist() }
+            jsonPath("$[0].createdAt") { exists() }
         }
         accept(token, sub).andExpect { status { isNoContent() } }
 
