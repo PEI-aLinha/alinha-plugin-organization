@@ -3,6 +3,7 @@ package pt.alinha.organization.events
 import pt.alinha.pluginapi.DomainEvent
 import pt.alinha.pluginapi.TenantId
 import java.time.Instant
+import java.time.LocalDate
 import java.util.UUID
 
 /**
@@ -21,5 +22,32 @@ data class OrganizationRegistered(
     override val tenantId: TenantId,
     override val correlationId: UUID,
     val organizationId: UUID,
+    override val occurredAt: Instant = Instant.now(),
+) : DomainEvent
+
+/**
+ * A task was given to a member, reassigned, reopened or got a new due date (organization#7): for the assignment
+ * e-mail (notifications#3), so [dueDate] is always the current deadline. Carries the assignee's `sub` only; the
+ * work is named by [type] and [reference].
+ */
+data class TaskAssigned(
+    override val tenantId: TenantId,
+    override val correlationId: UUID,
+    val taskId: UUID,
+    val type: String,
+    val reference: String,
+    val assigneeId: String,
+    val dueDate: LocalDate?,
+    override val occurredAt: Instant = Instant.now(),
+) : DomainEvent
+
+/** The work behind a task was done (organization#7). */
+data class TaskCompleted(
+    override val tenantId: TenantId,
+    override val correlationId: UUID,
+    val taskId: UUID,
+    val type: String,
+    val reference: String,
+    val assigneeId: String,
     override val occurredAt: Instant = Instant.now(),
 ) : DomainEvent

@@ -14,11 +14,14 @@ permissions:
 
 jobs:
   ci:
-    uses: PEI-aLinha/alinha/.github/workflows/plugin-ci.yml@main
+    # Coordinated change with the main repo's feat/7-analyst-tasks (OpenAPI contract for the task list): back to
+    # main once it merges.
+    uses: PEI-aLinha/alinha/.github/workflows/plugin-ci.yml@feat/7-analyst-tasks
     with:
       plugin-path: plugins/feature/organization
       gradle-project: organization
       npm-package: "@alinha/plugin-organization"
+      main-ref: feat/7-analyst-tasks
     secrets:
       ALINHA_READ_TOKEN: ${{ secrets.ALINHA_READ_TOKEN }}   # private repos only
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
