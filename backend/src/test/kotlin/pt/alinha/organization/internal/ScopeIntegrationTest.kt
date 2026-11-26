@@ -717,7 +717,7 @@ class ScopeIntegrationTest {
     fun `the applicability query is null before the scope is answered`() {
         val tenant = registered()
 
-        assertThat(asTenant(tenant) { query.current(TenantId(UUID.fromString(tenant))) }).isNull()
+        assertThat(asTenant(tenant) { query.current() }).isNull()
     }
 
     @Test
@@ -725,7 +725,7 @@ class ScopeIntegrationTest {
         val tenant = registered()
         answer(tenant).andExpect { status { isOk() } }
 
-        val result = asTenant(tenant) { query.current(TenantId(UUID.fromString(tenant))) }!!
+        val result = asTenant(tenant) { query.current() }!!
 
         assertThat(result.rulesVersion).isEqualTo(ApplicabilityRules.VERSION)
         assertThat(result.nis2Classification).isEqualTo(Nis2Classification.IMPORTANT)
@@ -739,7 +739,7 @@ class ScopeIntegrationTest {
         answer(tenant).andExpect { status { isOk() } }
         qualify(tenant, qualificationBody(classification = "essential")).andExpect { status { isOk() } }
 
-        val result = asTenant(tenant) { query.current(TenantId(UUID.fromString(tenant))) }!!
+        val result = asTenant(tenant) { query.current() }!!
 
         assertThat(result.nis2Classification).isEqualTo(Nis2Classification.IMPORTANT)
         assertThat(result.officialNis2Classification).isEqualTo(Nis2Classification.ESSENTIAL)
@@ -747,15 +747,13 @@ class ScopeIntegrationTest {
     }
 
     @Test
-    fun `the applicability query refuses a tenant other than the current one`() {
+    fun `the applicability query reads only the current tenant`() {
         val tenantA = registered()
         val tenantB = registered()
         answer(tenantB).andExpect { status { isOk() } }
 
-        val thrown = runCatching { asTenant(tenantA) { query.current(TenantId(UUID.fromString(tenantB))) } }
-            .exceptionOrNull()
-
-        assertThat(thrown?.cause).isInstanceOf(IllegalArgumentException::class.java)
+        assertThat(asTenant(tenantA) { query.current() }).isNull()
+        assertThat(asTenant(tenantB) { query.current() }).isNotNull()
     }
 }
 
