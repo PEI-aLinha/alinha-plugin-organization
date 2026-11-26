@@ -95,6 +95,16 @@ describe('RegistrationWizard', () => {
     expect(stepTitle()).toHaveTextContent('Dimensão')
   })
 
+  it('says there is nothing to save when no field is filled in, and keeps no draft', () => {
+    renderWithHost(<RegistrationWizard />)
+    type('Denominação', 'Acme')
+    type('Denominação', '')
+    click('Guardar e continuar mais tarde')
+    expect(screen.getByRole('status')).toHaveTextContent('Nada para guardar: ainda não preencheu nenhum campo.')
+    expect(screen.getByRole('status')).not.toHaveTextContent('Guardado')
+    expect(loadDraft('u1')).toBeNull()
+  })
+
   it('saves the draft on request and while typing', async () => {
     renderWithHost(<RegistrationWizard />)
     type('Denominação', 'Acme')
