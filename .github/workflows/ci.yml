@@ -14,8 +14,11 @@ permissions:
 
 jobs:
   ci:
-    uses: PEI-aLinha/alinha/.github/workflows/plugin-ci.yml@main
+    # Coordinated change (organization#6): test against the main repo's branch with the contract. Back to @main and
+    # no main-ref before merging.
+    uses: PEI-aLinha/alinha/.github/workflows/plugin-ci.yml@feat/6-members
     with:
+      main-ref: feat/6-members
       plugin-path: plugins/feature/organization
       gradle-project: organization
       npm-package: "@alinha/plugin-organization"
