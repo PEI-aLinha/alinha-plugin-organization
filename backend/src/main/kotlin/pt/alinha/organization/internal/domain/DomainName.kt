@@ -16,7 +16,7 @@ import java.net.IDN
  * This is only a check on the name, so it cannot keep the provider off a private network: any public name can
  * resolve to a private address. That guard is where the provider connects (the workers' `alinha_job_consumer.net`:
  * every resolved address must be public, the connection is pinned to it and redirects are not followed). Nor does it
- * prove the organization owns the domain: that is the officer's declaration in the MVP (main repo ADR 0007).
+ * prove the organization owns the domain: that is the officer's declaration in the MVP (main repo ADR 0009).
  */
 object DomainName {
     const val MAX_LENGTH = 253
