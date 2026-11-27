@@ -167,9 +167,17 @@ function AccountRegistrationWizard({ userId, userName }: { userId: string; userN
   }
 
   const saveForLater = () => {
-    setNotice(saveDraft(userId, form)
-      ? 'Guardado neste navegador. Pode fechar a página e continuar mais tarde a partir daqui.'
-      : 'Não foi possível guardar neste navegador. Termine o registo antes de fechar a página.')
+    // Say how far along the draft is, so saving an empty form is not mistaken for progress.
+    const fields = Object.values(form)
+    const filled = fields.filter((v) => v.trim()).length
+    if (!saveDraft(userId, form)) {
+      setNotice('Não foi possível guardar neste navegador. Termine o registo antes de fechar a página.')
+    } else if (filled === 0) {
+      // An empty form removes the draft (saveDraft): there is nothing to resume later.
+      setNotice('Nada para guardar: ainda não preencheu nenhum campo.')
+    } else {
+      setNotice(`Guardado neste navegador: ${filled} de ${fields.length} campos preenchidos. Pode fechar a página e continuar mais tarde a partir daqui.`)
+    }
   }
 
   if (registered) return <RegistrationDone name={registered.profile.name} form={registered.form} />
