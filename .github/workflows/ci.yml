@@ -22,6 +22,8 @@ jobs:
       plugin-path: plugins/feature/organization
       gradle-project: organization
       npm-package: "@alinha/plugin-organization"
+      # Coordinated change with the main repo's feat/25-applicability-query (core ApplicabilityQuery): back to main once it merges.
+      main-ref: feat/25-applicability-query
     secrets:
       ALINHA_READ_TOKEN: ${{ secrets.ALINHA_READ_TOKEN }}   # private repos only
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
