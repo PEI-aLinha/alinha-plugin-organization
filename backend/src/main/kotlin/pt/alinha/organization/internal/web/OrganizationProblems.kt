@@ -8,6 +8,7 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException
 import org.springframework.web.ErrorResponseException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import pt.alinha.organization.internal.AlreadyMemberException
 import pt.alinha.organization.internal.InvalidOrganizationException
 import pt.alinha.organization.internal.NifAlreadyRegisteredException
 import pt.alinha.organization.internal.OrganizationNotRegisteredException
@@ -19,6 +20,19 @@ private val CORE_MESSAGES = mapOf(
     "IDENTITY_UNAVAILABLE" to "Não foi possível concluir o registo agora. Tente novamente dentro de alguns minutos.",
     "TOO_MANY_REGISTRATIONS" to "Foram feitas demasiadas tentativas de registo. Tente novamente mais tarde.",
     "REGISTRATION_BUSY" to "Estamos a receber muitos registos neste momento. Tente novamente dentro de alguns minutos.",
+    // Team and invitations (ADR 0007)
+    "INVALID_EMAIL" to "Há dados por corrigir.",
+    "INVITATION_NOT_FOUND" to "Este convite não existe ou foi cancelado. Peça um convite novo a quem o enviou.",
+    "INVITATION_EXPIRED" to "Este convite já expirou. Peça um convite novo a quem o enviou.",
+    "INVITATION_ALREADY_USED" to "Este convite já foi usado.",
+    "INVITATION_FOR_ANOTHER_EMAIL" to
+        "Este convite foi enviado para outro email. Entre com a conta desse email para o aceitar.",
+    "MEMBER_NOT_FOUND" to "Esta pessoa já não faz parte da equipa.",
+)
+
+/** Field errors for core codes about one field, so the form can show the message next to it. */
+private val CORE_FIELD_ERRORS = mapOf(
+    "INVALID_EMAIL" to ("email" to "Este email não parece válido. Exemplo: nome@empresa.pt"),
 )
 
 /** RFC 9457 Problem Details with `code` and `errors` (ADR 0003). `detail` is shown to the user, in Portuguese. */
@@ -49,6 +63,10 @@ class OrganizationProblems {
         problem(HttpStatus.CONFLICT, "NIF_ALREADY_REGISTERED", "Já existe uma organização registada com este NIF.")
 
     @ExceptionHandler
+    fun alreadyMember(e: AlreadyMemberException) =
+        problem(HttpStatus.CONFLICT, "ALREADY_MEMBER", "Esta pessoa já faz parte da equipa.")
+
+    @ExceptionHandler
     fun notRegistered(e: OrganizationNotRegisteredException) =
         problem(HttpStatus.NOT_FOUND, "ORGANIZATION_NOT_REGISTERED", "A organização ainda não foi registada.")
 
@@ -66,7 +84,11 @@ class OrganizationProblems {
     @ExceptionHandler
     fun core(e: ErrorResponseException): ResponseEntity<ProblemDetail> {
         val body = e.body
-        CORE_MESSAGES[body.properties?.get("code")]?.let { body.detail = it }
+        val code = body.properties?.get("code")
+        CORE_MESSAGES[code]?.let { body.detail = it }
+        CORE_FIELD_ERRORS[code]?.let { (field, message) ->
+            body.setProperty("errors", listOf(mapOf("field" to field, "message" to message)))
+        }
         return ResponseEntity.status(e.statusCode).headers(e.headers).body(body)
     }
 
